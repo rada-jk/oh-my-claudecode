@@ -190,29 +190,53 @@ function loadGroundTruth(fixtureId: string): GroundTruth | null {
 // Claude API call
 // ============================================================
 
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function callClaude(
   client: Anthropic,
   systemPrompt: string,
   userMessage: string,
   model: string,
+  maxRetries = 5,
 ): Promise<string> {
-  const response = await client.messages.create({
-    model,
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: [
-      {
-        role: 'user',
-        content: userMessage,
-      },
-    ],
-  });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: 8192,
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: userMessage,
+          },
+        ],
+      });
 
-  const textBlock = response.content.find((b) => b.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('No text content in Claude response');
+      const textBlock = response.content.find((b) => b.type === 'text');
+      if (!textBlock || textBlock.type !== 'text') {
+        throw new Error('No text content in Claude response');
+      }
+      return textBlock.text;
+    } catch (err: unknown) {
+      const isRetryable =
+        err instanceof Error &&
+        (err.message.includes('529') ||
+          err.message.includes('overloaded') ||
+          err.message.includes('rate') ||
+          err.message.includes('500'));
+      if (isRetryable && attempt < maxRetries) {
+        const delayMs = Math.min(1000 * 2 ** attempt, 60000);
+        process.stdout.write(`\n    Retrying in ${(delayMs / 1000).toFixed(0)}s (attempt ${attempt + 1}/${maxRetries})... `);
+        await sleep(delayMs);
+        continue;
+      }
+      throw err;
+    }
   }
-  return textBlock.text;
+  throw new Error('Exhausted retries');
 }
 
 // ============================================================
