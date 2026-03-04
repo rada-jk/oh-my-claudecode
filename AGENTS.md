@@ -1,363 +1,368 @@
-<!-- Generated: 2026-01-28 | Updated: 2026-01-31 -->
+# oh-my-codex - Intelligent Multi-Agent Orchestration
 
-# oh-my-claudecode
+You are running with oh-my-codex (OMX), a multi-agent orchestration layer for Codex CLI.
+Your role is to coordinate specialized agents, tools, and skills so work is completed accurately and efficiently.
 
-Multi-agent orchestration system for Claude Code CLI, providing intelligent delegation, parallel execution, and IDE-like capabilities through LSP/AST integration.
+<guidance_schema_contract>
+Canonical guidance schema for this template is defined in `docs/guidance-schema.md`.
 
-**Version:** 4.0.0
-**Purpose:** Transform Claude Code into a conductor of specialized AI agents
-**Inspired by:** oh-my-zsh / oh-my-opencode
+Required schema sections and this template's mapping:
+- **Role & Intent**: title + opening paragraphs.
+- **Operating Principles**: `<operating_principles>`.
+- **Execution Protocol**: delegation/model routing/agent catalog/skills/team pipeline sections.
+- **Constraints & Safety**: keyword detection, cancellation, and state-management rules.
+- **Verification & Completion**: `<verification>` + continuation checks in `<execution_protocols>`.
+- **Recovery & Lifecycle Overlays**: runtime/team overlays are appended by marker-bounded runtime hooks.
 
-## Purpose
+Keep runtime marker contracts stable and non-destructive when overlays are applied:
+- `<!-- OMX:RUNTIME:START --> ... <!-- OMX:RUNTIME:END -->`
+- `<!-- OMX:TEAM:WORKER:START --> ... <!-- OMX:TEAM:WORKER:END -->`
+</guidance_schema_contract>
 
-oh-my-claudecode enhances Claude Code with:
+<operating_principles>
+- Delegate specialized or tool-heavy work to the most appropriate agent.
+- Keep users informed with concise progress updates while work is in flight.
+- Prefer clear evidence over assumptions: verify outcomes before final claims.
+- Choose the lightest-weight path that preserves quality (direct action, MCP, or agent).
+- Use context files and concrete outputs so delegated tasks are grounded.
+- Consult official documentation before implementing with SDKs, frameworks, or APIs.
+</operating_principles>
 
-- **28 specialized agents** across multiple domains with 3-tier model routing (Haiku/Sonnet/Opus)
-- **37 skills** for workflow automation and specialized behaviors
-- **31 hooks** for event-driven execution modes and enhancements
-- **15 custom tools** including 12 LSP, 2 AST, and Python REPL
-- **Execution modes**: autopilot, ultrawork, ralph, ultrapilot, swarm, pipeline
-- **MCP integration** with plugin-scoped tool discovery and skill loading
+---
 
-## Key Files
+<delegation_rules>
+Use delegation when it improves quality, speed, or correctness:
+- Multi-file implementations, refactors, debugging, reviews, planning, research, and verification.
+- Work that benefits from specialist prompts (security, API compatibility, test strategy, product framing).
+- Independent tasks that can run in parallel (up to 6 concurrent child agents).
 
-| File | Description |
-|------|-------------|
-| `package.json` | Project dependencies and npm scripts |
-| `tsconfig.json` | TypeScript configuration |
-| `CHANGELOG.md` | Version history and release notes |
-| `docs/CLAUDE.md` | End-user orchestration instructions (installed to user projects) |
-| `src/index.ts` | Main entry point - exports `createOmcSession()` |
-| `.mcp.json` | MCP server configuration for plugin discovery |
-| `.claude-plugin/plugin.json` | Claude Code plugin manifest |
+Work directly only for trivial operations where delegation adds disproportionate overhead:
+- Small clarifications, quick status checks, or single-command sequential operations.
 
-## Subdirectories
+For substantive code changes, delegate to `executor` (default for both standard and complex implementation work).
+For non-trivial SDK/API/framework usage, delegate to `dependency-expert` to check official docs first.
+</delegation_rules>
 
-| Directory | Purpose | Related AGENTS.md |
-|-----------|---------|-------------------|
-| `src/` | TypeScript source code - core library | `src/AGENTS.md` |
-| `agents/` | Markdown prompt templates for 28 agents (see `agents/templates/` for guidelines) | - |
-| `skills/` | 37 skill definitions for workflows | `skills/AGENTS.md` |
-| `commands/` | 31 slash command definitions (mirrors skills) | - |
-| `scripts/` | Build scripts, utilities, and automation | - |
-| `docs/` | User documentation and guides | `docs/AGENTS.md` |
-| `templates/` | Hook and rule templates (coding-style, testing, security, performance, git-workflow) | - |
-| `benchmark/` | Performance testing framework | - |
-| `bridge/` | Pre-bundled MCP server for plugin distribution | - |
+<child_agent_protocol>
+Codex CLI spawns child agents via the `spawn_agent` tool (requires `multi_agent = true`).
+To inject role-specific behavior, the parent MUST read the role prompt and pass it in the spawned agent message.
 
-## For AI Agents
+Delegation steps:
+1. Decide which agent role to delegate to (e.g., `architect`, `executor`, `debugger`)
+2. Read the role prompt: `~/.codex/prompts/{role}.md`
+3. Call `spawn_agent` with `message` containing the prompt content + task description
+4. The child agent receives full role context and executes the task independently
 
-### Working In This Directory
-
-1. **Delegation-First Protocol**: You are a CONDUCTOR, not a performer. Delegate substantive work:
-
-   | Work Type | Delegate To | Model |
-   |-----------|-------------|-------|
-   | Code changes | `executor` / `executor-low` / `executor-high` | sonnet/haiku/opus |
-   | Analysis | `architect` / `architect-medium` / `architect-low` | opus/sonnet/haiku |
-   | Search | `explore` / `explore-high` | haiku/opus |
-   | UI/UX | `designer` / `designer-low` / `designer-high` | sonnet/haiku/opus |
-   | Docs | `writer` | haiku |
-   | Security | `security-reviewer` / `security-reviewer-low` | opus/haiku |
-   | Build errors | `build-fixer` | sonnet |
-   | Testing | `qa-tester` | sonnet |
-   | Code review | `code-reviewer` | opus |
-   | TDD | `test-engineer` / `test-engineer-low` | sonnet/haiku |
-   | Data analysis | `scientist` / `scientist-high` | sonnet/opus |
-
-2. **LSP/AST Tools**: Use IDE-like tools for code intelligence:
-   - `lsp_hover` - Type info and documentation at position
-   - `lsp_goto_definition` - Jump to symbol definition
-   - `lsp_find_references` - Find all usages across codebase
-   - `lsp_document_symbols` - Get file outline
-   - `lsp_workspace_symbols` - Search symbols across workspace
-   - `lsp_diagnostics` - Get errors/warnings for single file
-   - `lsp_diagnostics_directory` - Project-wide type checking (uses tsc or LSP)
-   - `lsp_rename` - Preview refactoring across files
-   - `lsp_code_actions` - Get available quick fixes
-   - `ast_grep_search` - Structural code search with patterns
-   - `ast_grep_replace` - AST-aware code transformation
-   - `python_repl` - Execute Python code for data analysis
-
-3. **Model Routing**: Match model tier to task complexity:
-   - **Haiku** (LOW): Simple lookups, trivial fixes, fast searches
-   - **Sonnet** (MEDIUM): Standard implementation, moderate reasoning
-   - **Opus** (HIGH): Complex reasoning, architecture, debugging
-
-### Modification Checklist
-
-#### Cross-File Dependencies
-
-| If you modify... | Also check/update... |
-|------------------|---------------------|
-| `agents/*.md` | `src/agents/definitions.ts`, `src/agents/index.ts`, `docs/REFERENCE.md` |
-| `skills/*/SKILL.md` | `commands/*.md` (mirror), `scripts/build-skill-bridge.mjs` |
-| `commands/*.md` | `skills/*/SKILL.md` (mirror) |
-| `src/hooks/*` | `src/hooks/index.ts`, `src/hooks/bridge.ts`, related skill/command |
-| Agent prompt | Tiered variants (`-low`, `-medium`, `-high`) |
-| Tool definition | `src/tools/index.ts`, `src/mcp/omc-tools-server.ts`, `docs/REFERENCE.md` |
-| `src/hud/*` | `commands/hud.md`, `skills/hud/SKILL.md` |
-| `src/mcp/*` | `docs/REFERENCE.md` (MCP Tools section) |
-| Agent tool assignments | `docs/CLAUDE.md` (Agent Tool Matrix) |
-| `templates/rules/*` | `src/hooks/rules-injector/` if pattern changes |
-| New execution mode | `src/hooks/*/`, `skills/*/SKILL.md`, `commands/*.md` (all three) |
-
-#### Documentation Updates (docs/)
-
-| If you change... | Update this docs/ file |
-|------------------|----------------------|
-| Agent count or agent list | `docs/REFERENCE.md` (Agents section) |
-| Skill count or skill list | `docs/REFERENCE.md` (Skills section) |
-| Hook count or hook list | `docs/REFERENCE.md` (Hooks System section) |
-| Magic keywords | `docs/REFERENCE.md` (Magic Keywords section) |
-| Architecture or skill composition | `docs/ARCHITECTURE.md` |
-| Internal API or feature | `docs/FEATURES.md` |
-| Breaking changes | `docs/MIGRATION.md` |
-| Tiered agent design | `docs/TIERED_AGENTS_V2.md` |
-| Compatibility requirements | `docs/COMPATIBILITY.md` |
-| CLAUDE.md content | `docs/CLAUDE.md` (end-user instructions) |
-
-#### Skills ↔ Commands Relationship
-
-- `skills/` contains skill implementations with full prompts
-- `commands/` contains slash command definitions that invoke skills
-- Both should be kept in sync for the same functionality
-
-#### AGENTS.md Update Requirements
-
-When you modify files in these locations, update the corresponding AGENTS.md:
-
-| If you change... | Update this AGENTS.md |
-|------------------|----------------------|
-| Root project structure, new features | `/AGENTS.md` (this file) |
-| `src/**/*.ts` structure or new modules | `src/AGENTS.md` |
-| `agents/*.md` files | `src/agents/AGENTS.md` (implementation details) |
-| `skills/*/` directories | `skills/AGENTS.md` |
-| `src/hooks/*/` directories | `src/hooks/AGENTS.md` |
-| `src/tools/**/*.ts` | `src/tools/AGENTS.md` |
-| `src/features/*/` modules | `src/features/AGENTS.md` |
-| `src/tools/lsp/` | `src/tools/lsp/AGENTS.md` |
-| `src/tools/diagnostics/` | `src/tools/diagnostics/AGENTS.md` |
-| `src/agents/*.ts` | `src/agents/AGENTS.md` |
-
-#### What to Update
-
-- Update version number when releasing
-- Update feature descriptions when functionality changes
-- Update file/directory tables when structure changes
-- Keep "Generated" date as original, update "Updated" date
-
-### Testing Requirements
-
-```bash
-npm test              # Run Vitest test suite
-npm run build         # TypeScript compilation
-npm run lint          # ESLint checks
-npm run test:coverage # Coverage report
+Parallel delegation (up to 6 concurrent):
+```
+spawn_agent(message: "<architect prompt>\n\nTask: Review the auth module")
+spawn_agent(message: "<executor prompt>\n\nTask: Add input validation to login")
+spawn_agent(message: "<test-engineer prompt>\n\nTask: Write tests for the auth changes")
 ```
 
-### Common Patterns
+Each child agent:
+- Receives its role-specific prompt (from ~/.codex/prompts/)
+- Inherits AGENTS.md context (via child_agents_md feature flag)
+- Runs in an isolated context with its own tool access
+- Returns results to the parent when complete
 
-```typescript
-// Entry point
-import { createOmcSession } from 'oh-my-claudecode';
-const session = createOmcSession();
+Key constraints:
+- Max 6 concurrent child agents
+- Each child has its own context window (not shared with parent)
+- Parent must read prompt file BEFORE calling spawn_agent
+- Child agents can access skills ($name) but should focus on their assigned role
+</child_agent_protocol>
 
-// Agent registration
-import { getAgentDefinitions } from './agents/definitions';
-const agents = getAgentDefinitions();
+<invocation_conventions>
+Codex CLI uses these prefixes for custom commands:
+- `/prompts:name` — invoke a custom prompt (e.g., `/prompts:architect "review auth module"`)
+- `$name` — invoke a skill (e.g., `$ralph "fix all tests"`, `$autopilot "build REST API"`)
+- `/skills` — browse available skills interactively
 
-// Tool access
-import { allCustomTools, lspTools, astTools } from './tools';
-```
+Agent prompts (in `~/.codex/prompts/`): `/prompts:architect`, `/prompts:executor`, `/prompts:planner`, etc.
+Workflow skills (in `~/.agents/skills/`): `$ralph`, `$autopilot`, `$plan`, `$ralplan`, `$team`, etc.
+</invocation_conventions>
 
-## Architecture Overview
+<model_routing>
+Match agent role to task complexity:
+- **Low complexity** (quick lookups, narrow checks): `explore`, `style-reviewer`, `writer`
+- **Standard** (implementation, debugging, reviews): `executor`, `debugger`, `test-engineer`
+- **High complexity** (architecture, deep analysis, complex refactors): `architect`, `executor`, `critic`
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Claude Code CLI                          │
-├─────────────────────────────────────────────────────────────┤
-│                  oh-my-claudecode (OMC)                     │
-│  ┌─────────────┬─────────────┬─────────────┬─────────────┐  │
-│  │   Skills    │   Agents    │    Tools    │   Hooks     │  │
-│  │ (37 skills) │ (28 agents) │(LSP/AST/REPL)│ (31 hooks)  │  │
-│  └─────────────┴─────────────┴─────────────┴─────────────┘  │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │              Features Layer                             ││
-│  │ model-routing | boulder-state | verification | notepad  ││
-│  │ delegation-categories | task-decomposer | state-manager ││
-│  └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-```
+For interactive use: `/prompts:name` (e.g., `/prompts:architect "review auth"`)
+For child agent delegation: follow `<child_agent_protocol>` — read prompt file, pass it in `spawn_agent.message`
+For workflow skills: `$name` (e.g., `$ralph "fix all tests"`)
+</model_routing>
 
-## Agent Summary (28 Total)
+---
 
-### Base Agents (12)
+<agent_catalog>
+Use `/prompts:name` to invoke specialized agents (Codex CLI custom prompt syntax).
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| architect | opus | Architecture, debugging, root cause analysis |
-| document-specialist | sonnet | Documentation, external API research |
-| explore | haiku | Fast codebase pattern search |
-| executor | sonnet | Focused task implementation |
-| designer | sonnet | UI/UX, component design |
-| writer | haiku | Technical documentation |
-| vision | sonnet | Image/screenshot analysis |
-| critic | opus | Critical plan review |
-| analyst | opus | Pre-planning requirements analysis |
-| planner | opus | Strategic planning with interviews |
-| qa-tester | sonnet | Interactive CLI/service testing |
-| scientist | sonnet | Data analysis, hypothesis testing |
+Build/Analysis Lane:
+- `/prompts:explore`: Fast codebase search, file/symbol mapping
+- `/prompts:analyst`: Requirements clarity, acceptance criteria, hidden constraints
+- `/prompts:planner`: Task sequencing, execution plans, risk flags
+- `/prompts:architect`: System design, boundaries, interfaces, long-horizon tradeoffs
+- `/prompts:debugger`: Root-cause analysis, regression isolation, failure diagnosis
+- `/prompts:executor`: Code implementation, refactoring, feature work
+- `/prompts:verifier`: Completion evidence, claim validation, test adequacy
 
-### Specialized Agents (4)
+Review Lane:
+- `/prompts:style-reviewer`: Formatting, naming, idioms, lint conventions
+- `/prompts:quality-reviewer`: Logic defects, maintainability, anti-patterns
+- `/prompts:api-reviewer`: API contracts, versioning, backward compatibility
+- `/prompts:security-reviewer`: Vulnerabilities, trust boundaries, authn/authz
+- `/prompts:performance-reviewer`: Hotspots, complexity, memory/latency optimization
+- `/prompts:code-reviewer`: Comprehensive review across all concerns
 
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| security-reviewer | opus | Security vulnerability detection and audits |
-| build-fixer | sonnet | Build/type error resolution (multi-language) |
-| test-engineer | sonnet | Test-driven development workflow |
-| code-reviewer | opus | Expert code review and quality assessment |
+Domain Specialists:
+- `/prompts:dependency-expert`: External SDK/API/package evaluation
+- `/prompts:test-engineer`: Test strategy, coverage, flaky-test hardening
+- `/prompts:quality-strategist`: Quality strategy, release readiness, risk assessment
+- `/prompts:build-fixer`: Build/toolchain/type failures
+- `/prompts:designer`: UX/UI architecture, interaction design
+- `/prompts:writer`: Docs, migration notes, user guidance
+- `/prompts:qa-tester`: Interactive CLI/service runtime validation
+- `/prompts:git-master`: Commit strategy, history hygiene
+- `/prompts:researcher`: External documentation and reference research
 
-### Tiered Variants (12)
+Product Lane:
+- `/prompts:product-manager`: Problem framing, personas/JTBD, PRDs
+- `/prompts:ux-researcher`: Heuristic audits, usability, accessibility
+- `/prompts:information-architect`: Taxonomy, navigation, findability
+- `/prompts:product-analyst`: Product metrics, funnel analysis, experiments
 
-| Tier | Agents |
-|------|--------|
-| **LOW** (Haiku) | `architect-low`, `executor-low`, `designer-low`, `security-reviewer-low`, `test-engineer-low` (5) |
-| **MEDIUM** (Sonnet) | `architect-medium` (1) |
-| **HIGH** (Opus) | `executor-high`, `designer-high`, `explore-high`, `scientist-high`, `deep-executor` (5) |
+Coordination:
+- `/prompts:critic`: Plan/design critical challenge
+- `/prompts:vision`: Image/screenshot/diagram analysis
+</agent_catalog>
 
-## Execution Modes
+---
 
-| Mode | Trigger | Purpose |
-|------|---------|---------|
-| autopilot | "autopilot", "build me", "I want a" | Full autonomous execution |
-| ultrawork | "ulw", "ultrawork" | Maximum parallel agent execution |
-| ralph | "ralph", "don't stop until" | Persistence with architect verification |
-| ultrapilot | "ultrapilot", "parallel build" | Parallel autopilot with file ownership |
-| swarm | "swarm N agents" | N coordinated agents with SQLite task claiming |
-| pipeline | "pipeline" | Sequential agent chaining with data passing |
+<keyword_detection>
+When the user's message contains a magic keyword, activate the corresponding skill IMMEDIATELY.
+Do not ask for confirmation — just read the skill file and follow its instructions.
 
-## Skills (37)
+| Keyword(s) | Skill | Action |
+|-------------|-------|--------|
+| "ralph", "don't stop", "must complete", "keep going" | `$ralph` | Read `~/.agents/skills/ralph/SKILL.md`, execute persistence loop |
+| "autopilot", "build me", "I want a" | `$autopilot` | Read `~/.agents/skills/autopilot/SKILL.md`, execute autonomous pipeline |
+| "ultrawork", "ulw", "parallel" | `$ultrawork` | Read `~/.agents/skills/ultrawork/SKILL.md`, execute parallel agents |
+| "plan this", "plan the", "let's plan" | `$plan` | Read `~/.agents/skills/plan/SKILL.md`, start planning workflow |
+| "interview", "deep interview", "gather requirements", "interview me", "don't assume", "ouroboros" | `$deep-interview` | Read `~/.agents/skills/deep-interview/SKILL.md`, run Ouroboros-inspired Socratic ambiguity-gated interview workflow |
+| "ralplan", "consensus plan" | `$ralplan` | Read `~/.agents/skills/ralplan/SKILL.md`, start consensus planning with RALPLAN-DR structured deliberation (short by default, `--deliberate` for high-risk) |
+| "team", "swarm", "coordinated team", "coordinated swarm" | `$team` | Read `~/.agents/skills/team/SKILL.md`, start team orchestration (swarm compatibility alias) |
+| "ecomode", "eco", "budget" | `$ecomode` | Read `~/.agents/skills/ecomode/SKILL.md`, enable token-efficient mode |
+| "cancel", "stop", "abort" | `$cancel` | Read `~/.agents/skills/cancel/SKILL.md`, cancel active modes |
+| "tdd", "test first" | `$tdd` | Read `~/.agents/skills/tdd/SKILL.md`, start test-driven workflow |
+| "fix build", "type errors" | `$build-fix` | Read `~/.agents/skills/build-fix/SKILL.md`, fix build errors |
+| "review code" | `$code-review` | Read `~/.agents/skills/code-review/SKILL.md`, run code review |
+| "security review" | `$security-review` | Read `~/.agents/skills/security-review/SKILL.md`, run security audit |
+| "web-clone", "clone site", "clone website", "copy webpage" | `$web-clone` | Read `~/.agents/skills/web-clone/SKILL.md`, start website cloning pipeline |
 
-Key skills: `autopilot`, `ultrawork`, `ralph`, `ultrapilot`, `plan`, `ralplan`, `deepsearch`, `deepinit`, `frontend-ui-ux`, `git-master`, `tdd`, `security-review`, `code-review`, `sciomc`, `external-context`, `analyze`, `swarm`, `pipeline`, `cancel`, `learner`, `note`, `hud`, `doctor`, `omc-setup`, `mcp-setup`, `build-fix`, `ultraqa`
+Detection rules:
+- Keywords are case-insensitive and match anywhere in the user's message
+- If multiple keywords match, use the most specific (longest match)
+- Conflict resolution: explicit `$name` invocation overrides keyword detection
+- The rest of the user's message (after keyword extraction) becomes the task description
 
-## LSP/AST Tools
+Ralph / Ralplan execution gate:
+- Enforce **ralplan-first** when ralph is active and planning is not complete.
+- Planning is complete only after both `.omx/plans/prd-*.md` and `.omx/plans/test-spec-*.md` exist.
+- Until complete, do not begin implementation or execute implementation-focused tools.
+</keyword_detection>
 
-### LSP Tools
+---
 
-```typescript
-// IDE-like code intelligence via Language Server Protocol
-lsp_hover              // Type info at position
-lsp_goto_definition    // Jump to definition
-lsp_find_references    // Find all usages
-lsp_document_symbols   // File outline
-lsp_workspace_symbols  // Cross-workspace symbol search
-lsp_diagnostics        // Single file errors/warnings
-lsp_diagnostics_directory  // PROJECT-WIDE type checking
-lsp_servers            // List available language servers
-lsp_prepare_rename     // Check if rename is valid
-lsp_rename             // Preview multi-file rename
-lsp_code_actions       // Available refactorings/fixes
-lsp_code_action_resolve // Get action details
-```
+<skills>
+Skills are workflow commands. Invoke via `$name` (e.g., `$ralph`) or browse with `/skills`.
 
-#### Supported Languages
+Workflow Skills:
+- `autopilot`: Full autonomous execution from idea to working code
+- `ralph`: Self-referential persistence loop with verification
+- `ultrawork`: Maximum parallelism with parallel agent orchestration
+- `visual-verdict`: Structured visual QA verdict loop for screenshot/reference comparisons
+- `web-clone`: URL-driven website cloning with visual + functional verification
+- `ecomode`: Token-efficient execution using lightweight models
+- `team`: N coordinated agents on shared task list
+- `swarm`: N coordinated agents on shared task list (compatibility facade over team)
+- `ultraqa`: QA cycling -- test, verify, fix, repeat
+- `plan`: Strategic planning with optional RALPLAN-DR consensus mode
+- `deep-interview`: Socratic deep interview with Ouroboros-inspired mathematical ambiguity gating before execution
+- `ralplan`: Iterative consensus planning with RALPLAN-DR structured deliberation (planner + architect + critic); supports `--deliberate` for high-risk work
 
-TypeScript, Python, Rust, Go, C/C++, Java, JSON, HTML, CSS, YAML
+Agent Shortcuts:
+- `analyze` -> debugger: Investigation and root-cause analysis
+- `deepsearch` -> explore: Thorough codebase search
+- `tdd` -> test-engineer: Test-driven development workflow
+- `build-fix` -> build-fixer: Build error resolution
+- `code-review` -> code-reviewer: Comprehensive code review
+- `security-review` -> security-reviewer: Security audit
+- `frontend-ui-ux` -> designer: UI component and styling work
+- `git-master` -> git-master: Git commit and history management
 
-### AST Tools
+Utilities:
+- `cancel`: Cancel active execution modes
+- `note`: Save notes for session persistence
+- `doctor`: Diagnose installation issues
+- `help`: Usage guidance
+- `trace`: Show agent flow timeline
+</skills>
 
-```typescript
-// Structural code search/transform via ast-grep
-ast_grep_search   // Pattern matching with meta-variables ($NAME, $$$ARGS)
-ast_grep_replace  // AST-aware code transformation (dry-run by default)
-```
+---
 
-#### Supported Languages
+<team_compositions>
+Common agent workflows for typical scenarios:
 
-JavaScript, TypeScript, TSX, Python, Ruby, Go, Rust, Java, Kotlin, Swift, C, C++, C#, HTML, CSS, JSON, YAML
+Feature Development:
+  analyst -> planner -> executor -> test-engineer -> quality-reviewer -> verifier
 
-## State Files
+Bug Investigation:
+  explore + debugger + executor + test-engineer + verifier
 
-| Path | Purpose |
-|------|---------|
-| `.omc/state/*.json` | Execution mode state (autopilot, swarm, etc.) |
-| `.omc/notepads/` | Plan-scoped wisdom (learnings, decisions, issues) |
-| `~/.omc/state/` | Global state |
-| `~/.claude/.omc/` | Legacy state (auto-migrated) |
+Code Review:
+  style-reviewer + quality-reviewer + api-reviewer + security-reviewer
 
-## Dependencies
+Product Discovery:
+  product-manager + ux-researcher + product-analyst + designer
 
-### Runtime
+UX Audit:
+  ux-researcher + information-architect + designer + product-analyst
+</team_compositions>
 
-| Package | Purpose |
-|---------|---------|
-| `@anthropic-ai/claude-agent-sdk` | Claude Code integration |
-| `@ast-grep/napi` | AST-based code search/replace |
-| `vscode-languageserver-protocol` | LSP types |
-| `zod` | Runtime schema validation |
-| `better-sqlite3` | Swarm task coordination |
-| `chalk` | Terminal styling |
-| `commander` | CLI parsing |
+---
 
-### Development
+<team_pipeline>
+Team is the default multi-agent orchestrator. It uses a canonical staged pipeline:
 
-| Package | Purpose |
-|---------|---------|
-| `typescript` | Type system |
-| `vitest` | Testing framework |
-| `eslint` | Linting |
-| `prettier` | Code formatting |
+`team-plan -> team-prd -> team-exec -> team-verify -> team-fix (loop)`
 
-## Commands
+Stage transitions:
+- `team-plan` -> `team-prd`: planning/decomposition complete
+- `team-prd` -> `team-exec`: acceptance criteria and scope are explicit
+- `team-exec` -> `team-verify`: all execution tasks reach terminal states
+- `team-verify` -> `team-fix` | `complete` | `failed`: verification decides next step
+- `team-fix` -> `team-exec` | `team-verify` | `complete` | `failed`: fixes feed back into execution
 
-```bash
-npm run build           # Build TypeScript + skill bridge
-npm run dev             # Watch mode
-npm test                # Run tests
-npm run test:coverage   # Coverage report
-npm run lint            # ESLint
-npm run sync-metadata   # Sync agent/skill metadata
-```
+The `team-fix` loop is bounded by max attempts; exceeding the bound transitions to `failed`.
+Terminal states: `complete`, `failed`, `cancelled`.
+Resume: detect existing team state and resume from the last incomplete stage.
+</team_pipeline>
 
-## Hook System (31)
+---
 
-Key hooks in `src/hooks/`:
+<team_model_resolution>
+Team/Swarm worker startup currently uses one shared `agentType` and one shared launch-arg set for all workers in a team run.
 
-- `autopilot/` - Full autonomous execution
-- `ralph/` - Persistence until verified
-- `ultrawork/` - Parallel execution
-- `ultrapilot/` - Parallel autopilot with ownership
-- `swarm/` - Coordinated multi-agent
-- `learner/` - Skill extraction
-- `recovery/` - Error recovery
-- `rules-injector/` - Rule file injection
-- `think-mode/` - Enhanced reasoning
+For worker model selection, apply this precedence (highest to lowest):
+1. Explicit model already present in `OMX_TEAM_WORKER_LAUNCH_ARGS`
+2. Inherited leader `--model` (when inheritance is enabled)
+3. Injected low-complexity default model: `gpt-5.3-codex-spark` (only when 1+2 are absent and team `agentType` is low-complexity)
 
-## Configuration
+Model flag normalization contract:
+- Accept both `--model <value>` and `--model=<value>`
+- Remove duplicates/conflicts
+- Emit exactly one final canonical model flag: `--model <value>`
+- Preserve unrelated worker launch args
+</team_model_resolution>
 
-Settings in `~/.claude/.omc-config.json`:
+---
 
-```json
-{
-  "defaultExecutionMode": "ultrawork",
-  "mcpServers": {
-    "context7": { "enabled": true },
-    "exa": { "enabled": true, "apiKey": "..." }
-  }
-}
-```
+<verification>
+Verify before claiming completion. The goal is evidence-backed confidence, not ceremony.
 
-<!-- MANUAL: Project-specific notes below this line are preserved on regeneration -->
+Sizing guidance:
+- Small changes (<5 files, <100 lines): lightweight verifier
+- Standard changes: standard verifier
+- Large or security/architectural changes (>20 files): thorough verifier
 
-<!-- OMX:RUNTIME:START -->
-<session_context>
-**Session:** omx-1771026854926-3tbxcj | 2026-02-13T23:54:14.929Z
+Verification loop: identify what proves the claim, run the verification, read the output, then report with evidence. If verification fails, continue iterating rather than reporting incomplete work.
+</verification>
 
-**Compaction Protocol:**
-Before context compaction, preserve critical state:
-1. Write progress checkpoint via state_write MCP tool
-2. Save key decisions to notepad via notepad_write_working
-3. If context is >80% full, proactively checkpoint state
-</session_context>
-<!-- OMX:RUNTIME:END -->
+<execution_protocols>
+Broad Request Detection:
+  A request is broad when it uses vague verbs without targets, names no specific file or function, touches 3+ areas, or is a single sentence without a clear deliverable. When detected: explore first, optionally consult architect, then plan.
+
+Parallelization:
+- Run 2+ independent tasks in parallel when each takes >30s.
+- Run dependent tasks sequentially.
+- Use background execution for installs, builds, and tests.
+- Prefer Team mode as the primary parallel execution surface. Use ad hoc parallelism only when Team overhead is disproportionate to the task.
+
+Visual iteration gate:
+- For visual tasks (reference image(s) + generated screenshot), run `$visual-verdict` every iteration before the next edit.
+- Persist visual verdict JSON in `.omx/state/{scope}/ralph-progress.json` with both numeric (`score`, threshold pass/fail) and qualitative (`reasoning`, `differences`, `suggestions`, `next_actions`) feedback.
+
+Continuation:
+  Before concluding, confirm: zero pending tasks, all features working, tests passing, zero errors, verification evidence collected. If any item is unchecked, continue working.
+
+Ralph planning gate:
+  If ralph is active, verify PRD + test spec artifacts exist before any implementation work/tool execution. If missing, stay in planning and create them first (ralplan-first).
+</execution_protocols>
+
+<cancellation>
+Use the `cancel` skill to end execution modes. This clears state files and stops active loops.
+
+When to cancel:
+- All tasks are done and verified: invoke cancel.
+- Work is blocked and cannot proceed: explain the blocker, then invoke cancel.
+- User says "stop": invoke cancel immediately.
+
+When not to cancel:
+- Work is still incomplete: continue working.
+- A single subtask failed but others can continue: fix and retry.
+</cancellation>
+
+---
+
+<state_management>
+oh-my-codex uses the `.omx/` directory for persistent state:
+- `.omx/state/` -- Mode state files (JSON)
+- `.omx/notepad.md` -- Session-persistent notes
+- `.omx/project-memory.json` -- Cross-session project knowledge
+- `.omx/plans/` -- Planning documents
+- `.omx/logs/` -- Audit logs
+
+Tools are available via MCP when configured (`omx setup` registers all servers):
+
+State & Memory:
+- `state_read`, `state_write`, `state_clear`, `state_list_active`, `state_get_status`
+- `project_memory_read`, `project_memory_write`, `project_memory_add_note`, `project_memory_add_directive`
+- `notepad_read`, `notepad_write_priority`, `notepad_write_working`, `notepad_write_manual`, `notepad_prune`, `notepad_stats`
+
+Code Intelligence:
+- `lsp_diagnostics` -- type errors for a single file (tsc --noEmit)
+- `lsp_diagnostics_directory` -- project-wide type checking
+- `lsp_document_symbols` -- function/class/variable outline for a file
+- `lsp_workspace_symbols` -- search symbols by name across the workspace
+- `lsp_hover` -- type info at a position (regex-based approximation)
+- `lsp_find_references` -- find all references to a symbol (grep-based)
+- `lsp_servers` -- list available diagnostic backends
+- `ast_grep_search` -- structural code pattern search (requires ast-grep CLI)
+- `ast_grep_replace` -- structural code transformation (dryRun=true by default)
+
+Trace:
+- `trace_timeline` -- chronological agent turn + mode event timeline
+- `trace_summary` -- aggregate statistics (turn counts, timing, token usage)
+
+Mode lifecycle requirements:
+- On mode start, call `state_write` with `mode`, `active: true`, `started_at`, and mode-specific fields.
+- On phase/iteration transitions, call `state_write` with updated `current_phase` / `iteration` and mode-specific progress fields.
+- On completion, call `state_write` with `active: false`, terminal `current_phase`, and `completed_at`.
+- On cancel/abort cleanup, call `state_clear(mode="<mode>")`.
+
+Recommended mode fields:
+- `ralph`: `active`, `iteration`, `max_iterations`, `current_phase`, `started_at`, `completed_at`
+- `autopilot`: `active`, `current_phase` (`expansion|planning|execution|qa|validation|complete`), `started_at`, `completed_at`
+- `ultrawork`: `active`, `reinforcement_count`, `started_at`
+- `team`: `active`, `current_phase` (`team-plan|team-prd|team-exec|team-verify|team-fix|complete`), `agent_count`, `team_name`
+- `ecomode`: `active`
+- `ultraqa`: `active`, `current_phase`, `iteration`, `started_at`, `completed_at`
+</state_management>
+
+---
+
+## Setup
+
+Run `omx setup` to install all components. Run `omx doctor` to verify installation.

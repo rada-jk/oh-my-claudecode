@@ -117,7 +117,7 @@ export declare function recordPattern(directory: string, pattern: string): boole
  *  - 'complete' if team reached a terminal state (complete, failed)
  *  - null if no team state is active (ralph operates independently)
  */
-export declare function getTeamPhaseDirective(directory: string, sessionId?: string): 'continue' | 'complete' | null;
+export declare function getTeamPhaseDirective(directory: string, sessionId?: string): "continue" | "complete" | null;
 /**
  * Check if ralph should complete based on PRD status
  */

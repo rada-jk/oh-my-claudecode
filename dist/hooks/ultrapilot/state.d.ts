@@ -4,7 +4,7 @@
  * Persistent state for ultrapilot workflow - tracks parallel workers,
  * file ownership, and progress.
  */
-import type { UltrapilotState, UltrapilotConfig, WorkerState, FileOwnership } from './types.js';
+import type { UltrapilotState, UltrapilotConfig, WorkerState, FileOwnership } from "./types.js";
 /**
  * Read ultrapilot state from disk
  */

@@ -1517,11 +1517,21 @@ async function spawnWorkerForTask(runtime, workerNameValue, taskIndex) {
     runtime.resolvedBinaryPaths = {};
   }
   runtime.resolvedBinaryPaths[agentType] = resolvedBinaryPath;
+  const modelForAgent = (() => {
+    if (agentType === "codex") {
+      return process.env.OMC_EXTERNAL_MODELS_DEFAULT_CODEX_MODEL || process.env.OMC_CODEX_DEFAULT_MODEL || void 0;
+    }
+    if (agentType === "gemini") {
+      return process.env.OMC_EXTERNAL_MODELS_DEFAULT_GEMINI_MODEL || process.env.OMC_GEMINI_DEFAULT_MODEL || void 0;
+    }
+    return void 0;
+  })();
   const [launchBinary, ...launchArgs] = buildWorkerArgv(agentType, {
     teamName: runtime.teamName,
     workerName: workerNameValue,
     cwd: runtime.cwd,
-    resolvedBinaryPath
+    resolvedBinaryPath,
+    model: modelForAgent
   });
   if (usePromptMode) {
     const promptArgs = getPromptModeArgs(agentType, `Read and execute your task from: ${relInboxPath}`);
@@ -1758,6 +1768,89 @@ var import_fs8 = require("fs");
 var import_path12 = require("path");
 var jsonc = __toESM(require("jsonc-parser"), 1);
 
+// src/utils/ssrf-guard.ts
+var BLOCKED_HOST_PATTERNS = [
+  // Exact matches
+  /^localhost$/i,
+  /^127\.[0-9]+\.[0-9]+\.[0-9]+$/,
+  // Loopback
+  /^10\.[0-9]+\.[0-9]+\.[0-9]+$/,
+  // Class A private
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+$/,
+  // Class B private
+  /^192\.168\.[0-9]+\.[0-9]+$/,
+  // Class C private
+  /^169\.254\.[0-9]+\.[0-9]+$/,
+  // Link-local
+  /^(0|22[4-9]|23[0-9])\.[0-9]+\.[0-9]+\.[0-9]+$/,
+  // Multicast, reserved
+  /^\[?::1\]?$/,
+  // IPv6 loopback
+  /^\[?fc00:/i,
+  // IPv6 unique local
+  /^\[?fe80:/i
+  // IPv6 link-local
+];
+var ALLOWED_SCHEMES = ["https:", "http:"];
+function validateUrlForSSRF(urlString) {
+  if (!urlString || typeof urlString !== "string") {
+    return { allowed: false, reason: "URL is empty or invalid" };
+  }
+  let parsed;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    return { allowed: false, reason: "Invalid URL format" };
+  }
+  if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+    return { allowed: false, reason: `Protocol '${parsed.protocol}' is not allowed` };
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  for (const pattern of BLOCKED_HOST_PATTERNS) {
+    if (pattern.test(hostname)) {
+      return {
+        allowed: false,
+        reason: `Hostname '${hostname}' resolves to a blocked internal/private address`
+      };
+    }
+  }
+  if (parsed.username || parsed.password) {
+    return { allowed: false, reason: "URLs with embedded credentials are not allowed" };
+  }
+  const dangerousPaths = [
+    "/metadata",
+    "/meta-data",
+    "/latest/meta-data",
+    "/computeMetadata"
+  ];
+  const pathLower = parsed.pathname.toLowerCase();
+  for (const dangerous of dangerousPaths) {
+    if (pathLower.startsWith(dangerous)) {
+      return {
+        allowed: false,
+        reason: `Path '${parsed.pathname}' is blocked (cloud metadata access)`
+      };
+    }
+  }
+  return { allowed: true };
+}
+function validateAnthropicBaseUrl(urlString) {
+  const result = validateUrlForSSRF(urlString);
+  if (!result.allowed) {
+    return result;
+  }
+  let parsed;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    return { allowed: false, reason: "Invalid URL" };
+  }
+  if (parsed.protocol === "http:") {
+    console.warn("[SSRF Guard] Warning: Using HTTP instead of HTTPS for ANTHROPIC_BASE_URL");
+  }
+  return { allowed: true };
+}
+
 // src/config/models.ts
 var BUILTIN_MODEL_HIGH = "claude-opus-4-6-20260205";
 var BUILTIN_MODEL_MEDIUM = "claude-sonnet-4-6-20260217";
@@ -1780,8 +1873,15 @@ function isNonClaudeProvider() {
     return true;
   }
   const baseUrl = process.env.ANTHROPIC_BASE_URL || "";
-  if (baseUrl && !baseUrl.includes("anthropic.com")) {
-    return true;
+  if (baseUrl) {
+    const validation = validateAnthropicBaseUrl(baseUrl);
+    if (!validation.allowed) {
+      console.error(`[SSRF Guard] Rejecting ANTHROPIC_BASE_URL: ${validation.reason}`);
+      return true;
+    }
+    if (!baseUrl.includes("anthropic.com")) {
+      return true;
+    }
   }
   return false;
 }

@@ -2,18 +2,18 @@
  * Project Memory Hook
  * Main orchestrator for auto-detecting and injecting project context
  */
-import { contextCollector } from '../../features/context-injector/collector.js';
-import { findProjectRoot } from '../rules-injector/finder.js';
-import { loadProjectMemory, saveProjectMemory, shouldRescan } from './storage.js';
-import { detectProjectEnvironment } from './detector.js';
-import { formatContextSummary } from './formatter.js';
+import { contextCollector } from "../../features/context-injector/collector.js";
+import { findProjectRoot } from "../rules-injector/finder.js";
+import { loadProjectMemory, saveProjectMemory, shouldRescan, } from "./storage.js";
+import { detectProjectEnvironment } from "./detector.js";
+import { formatContextSummary } from "./formatter.js";
 /**
  * Session caches to prevent duplicate injection
  * Map<sessionId, Set<projectRoot>>
- * Bounded to MAX_SESSION_CACHE_SIZE entries to prevent memory leaks in long-running MCP processes.
+ * Bounded to MAX_SESSIONS entries to prevent memory leaks in long-running MCP processes.
  */
 const sessionCaches = new Map();
-const MAX_SESSION_CACHE_SIZE = 100;
+const MAX_SESSIONS = 100;
 /**
  * Register project memory context for a session
  * Called from SessionStart hook
@@ -31,10 +31,10 @@ export async function registerProjectMemoryContext(sessionId, workingDirectory) 
     // Check session cache (avoid duplicate injection)
     if (!sessionCaches.has(sessionId)) {
         // Evict oldest entry if cache is at capacity
-        if (sessionCaches.size >= MAX_SESSION_CACHE_SIZE) {
-            const oldestKey = sessionCaches.keys().next().value;
-            if (oldestKey !== undefined) {
-                sessionCaches.delete(oldestKey);
+        if (sessionCaches.size >= MAX_SESSIONS) {
+            const firstKey = sessionCaches.keys().next().value;
+            if (firstKey !== undefined) {
+                sessionCaches.delete(firstKey);
             }
         }
         sessionCaches.set(sessionId, new Set());
@@ -60,13 +60,13 @@ export async function registerProjectMemoryContext(sessionId, workingDirectory) 
         }
         // Register context with high priority
         contextCollector.register(sessionId, {
-            id: 'project-environment',
-            source: 'project-memory',
+            id: "project-environment",
+            source: "project-memory",
             content: formatContextSummary(memory),
-            priority: 'high',
+            priority: "high",
             metadata: {
                 projectRoot,
-                languages: memory.techStack.languages.map(l => l.name),
+                languages: memory.techStack.languages.map((l) => l.name),
                 lastScanned: memory.lastScanned,
             },
         });
@@ -76,7 +76,7 @@ export async function registerProjectMemoryContext(sessionId, workingDirectory) 
     }
     catch (error) {
         // Silently fail - we don't want to break the session
-        console.error('Error registering project memory context:', error);
+        console.error("Error registering project memory context:", error);
         return false;
     }
 }
@@ -100,13 +100,13 @@ export async function rescanProjectEnvironment(projectRoot) {
     await saveProjectMemory(projectRoot, memory);
 }
 // Re-export utilities for use in other modules
-export { loadProjectMemory, saveProjectMemory, withProjectMemoryLock } from './storage.js';
-export { detectProjectEnvironment } from './detector.js';
-export { formatContextSummary, formatFullContext } from './formatter.js';
-export { learnFromToolOutput, addCustomNote } from './learner.js';
-export { processPreCompact } from './pre-compact.js';
-export { mapDirectoryStructure, updateDirectoryAccess } from './directory-mapper.js';
-export { trackAccess, getTopHotPaths, decayHotPaths } from './hot-path-tracker.js';
-export { detectDirectivesFromMessage, addDirective, formatDirectivesForContext } from './directive-detector.js';
-export * from './types.js';
+export { loadProjectMemory, saveProjectMemory, withProjectMemoryLock, } from "./storage.js";
+export { detectProjectEnvironment } from "./detector.js";
+export { formatContextSummary, formatFullContext } from "./formatter.js";
+export { learnFromToolOutput, addCustomNote } from "./learner.js";
+export { processPreCompact } from "./pre-compact.js";
+export { mapDirectoryStructure, updateDirectoryAccess, } from "./directory-mapper.js";
+export { trackAccess, getTopHotPaths, decayHotPaths, } from "./hot-path-tracker.js";
+export { detectDirectivesFromMessage, addDirective, formatDirectivesForContext, } from "./directive-detector.js";
+export * from "./types.js";
 //# sourceMappingURL=index.js.map

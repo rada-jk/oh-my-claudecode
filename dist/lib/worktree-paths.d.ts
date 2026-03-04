@@ -164,6 +164,14 @@ export declare function resetProcessSessionId(): void;
  */
 export declare function validateSessionId(sessionId: string): void;
 /**
+ * Validate a transcript path to prevent arbitrary file reads.
+ * Transcript files should only be read from known Claude directories.
+ *
+ * @param transcriptPath - The transcript path to validate
+ * @returns true if path is valid, false otherwise
+ */
+export declare function isValidTranscriptPath(transcriptPath: string): boolean;
+/**
  * Resolve a session-scoped state file path.
  * Path: {omcRoot}/state/sessions/{sessionId}/{mode}-state.json
  *

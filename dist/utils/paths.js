@@ -188,7 +188,7 @@ export function purgeStalePluginCacheVersions() {
                 const normalised = stripTrailing(versionDir);
                 // Check if this version or any of its subdirectories are referenced
                 const isActive = activePaths.has(normalised) ||
-                    [...activePaths].some(ap => ap.startsWith(normalised + '/'));
+                    Array.from(activePaths).some(ap => ap.startsWith(normalised + '/'));
                 if (isActive)
                     continue;
                 // Grace period: skip recently modified directories to avoid

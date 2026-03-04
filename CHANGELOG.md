@@ -1,3 +1,44 @@
+# oh-my-claudecode v4.6.2: CLI Shebang Hotfix
+
+## Release Notes
+
+Hotfix release to resolve duplicate shebang issue in published v4.6.1 package.
+
+### Bug Fixes
+
+- **CLI Shebang Fix** (#1309): Removed duplicate shebang from `bridge/cli.cjs` build output.
+
+---
+
+# oh-my-claudecode v4.6.1: Security Hardening, Team Reliability & HUD Improvements
+
+## Release Notes
+
+This patch release delivers critical security fixes for SSRF and shell injection vulnerabilities, alongside team runtime stability improvements and HUD configurability enhancements. Version bumped from 4.6.0 to 4.6.1.
+
+### New Features
+
+- **Configurable Git Info Position** (#047d5638): HUD now supports `gitInfoPosition` config to display git information above or below the main panel.
+- **Harsh-Critic Opt-in** (#9f52cd1a): The harsh-critic agent is now opt-in via `features.harshCritic` configuration flag.
+
+### Security Fixes
+
+- **SSRF Protection** (#1304): Added SSRF protection for `ANTHROPIC_BASE_URL` to prevent unauthorized outbound requests.
+- **Shell Injection Prevention** (#9675babb): Validated model name and provider in `spawnCliProcess` to prevent shell injection attacks.
+- **Config Injection Fixes** (#0b2e0542): Hardened against shell and configuration injection vulnerabilities.
+
+### Bug Fixes
+
+- **Persistent Mode Cancel Signal** (#1306): Fixed cancel signal check before blocking stop hook.
+- **HUD Async I/O** (#1305): Converted file I/O to async to prevent event loop blocking.
+- **CLI Model Passthrough**: Fixed CLI worker model parameter passing in `omc-teams`.
+- **CLI Bundle** (#9d713bc4): Bundled CLI entry point to eliminate node_modules dependency.
+- **Memory Leak Prevention** (#bfd726cb): Added max-size caps to unbounded Maps and caches.
+- **Benchmark Hardening** (#469f914a): Hardened benchmark parser and calibrated keyword matching.
+- **Benchmark Retry Logic** (#3d6f56f7): Added retry with exponential backoff for API overload errors.
+
+---
+
 # oh-my-claudecode v4.6.0: Team Runtime Hardening, Security Fixes & PRD-Driven Ralph
 
 ## Release Notes

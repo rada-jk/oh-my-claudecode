@@ -5,7 +5,7 @@
  *
  * Ported from oh-my-opencode's boulder-state.
  */
-import type { BoulderState, PlanProgress, PlanSummary } from './types.js';
+import type { BoulderState, PlanProgress, PlanSummary } from "./types.js";
 /**
  * Get the full path to the boulder state file
  */

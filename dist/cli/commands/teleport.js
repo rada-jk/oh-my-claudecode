@@ -170,8 +170,8 @@ function sanitize(str, maxLen = 30) {
  */
 function getCurrentRepo() {
     try {
-        const root = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
-        const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf-8' }).trim();
+        const root = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8', timeout: 5000 }).trim();
+        const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf-8', timeout: 5000 }).trim();
         const parsed = parseRemoteUrl(remoteUrl);
         if (parsed) {
             return { owner: parsed.owner, repo: parsed.repo, root, provider: parsed.provider };
@@ -521,8 +521,10 @@ export async function teleportRemoveCommand(pathOrName, options) {
         const mainRepoMatch = gitDir.match(/(.+)[/\\]\.git[/\\]worktrees[/\\]/);
         const mainRepo = mainRepoMatch ? mainRepoMatch[1] : null;
         if (mainRepo) {
-            const forceFlag = options.force ? '--force' : '';
-            execSync(`git worktree remove "${worktreePath}" ${forceFlag}`, {
+            const args = options.force
+                ? ['worktree', 'remove', '--force', worktreePath]
+                : ['worktree', 'remove', worktreePath];
+            execFileSync('git', args, {
                 cwd: mainRepo,
                 stdio: 'pipe',
             });

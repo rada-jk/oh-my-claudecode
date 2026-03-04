@@ -1031,7 +1031,11 @@ function sleep(ms) {
 function captureFileSnapshot(cwd) {
   const files = /* @__PURE__ */ new Set();
   try {
-    const statusOutput = (0, import_child_process2.execSync)("git status --porcelain", { cwd, encoding: "utf-8", timeout: 1e4 });
+    const statusOutput = (0, import_child_process2.execSync)("git status --porcelain", {
+      cwd,
+      encoding: "utf-8",
+      timeout: 1e4
+    });
     for (const line of statusOutput.split("\n")) {
       if (!line.trim()) continue;
       const filePart = line.slice(3);
@@ -1039,7 +1043,10 @@ function captureFileSnapshot(cwd) {
       const fileName = arrowIdx !== -1 ? filePart.slice(arrowIdx + 4) : filePart;
       files.add(fileName.trim());
     }
-    const untrackedOutput = (0, import_child_process2.execSync)("git ls-files --others --exclude-standard", { cwd, encoding: "utf-8", timeout: 1e4 });
+    const untrackedOutput = (0, import_child_process2.execSync)(
+      "git ls-files --others --exclude-standard",
+      { cwd, encoding: "utf-8", timeout: 1e4 }
+    );
     for (const line of untrackedOutput.split("\n")) {
       if (line.trim()) files.add(line.trim());
     }
@@ -1069,6 +1076,22 @@ function buildEffectivePermissions(config) {
   return getEffectivePermissions({
     workerName: config.workerName
   });
+}
+var MODEL_NAME_REGEX = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+function validateModelName(model) {
+  if (!model) return;
+  if (!MODEL_NAME_REGEX.test(model)) {
+    throw new Error(
+      `Invalid model name: ${model}. Must match /^[a-z0-9][a-z0-9._-]{0,63}$/i`
+    );
+  }
+}
+function validateProvider(provider) {
+  if (provider !== "codex" && provider !== "gemini") {
+    throw new Error(
+      `Invalid provider: ${provider}. Must be 'codex' or 'gemini'`
+    );
+  }
 }
 var MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 var INBOX_ROTATION_THRESHOLD = 10 * 1024 * 1024;
@@ -1145,15 +1168,36 @@ function buildTaskPrompt(task, messages, config) {
     }
     inboxContext = "\nCONTEXT FROM TEAM LEAD:\n" + inboxParts.join("\n") + "\n";
   }
-  let result = formatPromptTemplate(sanitizedSubject, sanitizedDescription, config.workingDirectory, inboxContext);
+  let result = formatPromptTemplate(
+    sanitizedSubject,
+    sanitizedDescription,
+    config.workingDirectory,
+    inboxContext
+  );
   if (result.length > MAX_PROMPT_SIZE) {
     const overBy = result.length - MAX_PROMPT_SIZE;
-    sanitizedDescription = sanitizedDescription.slice(0, Math.max(0, sanitizedDescription.length - overBy));
-    result = formatPromptTemplate(sanitizedSubject, sanitizedDescription, config.workingDirectory, inboxContext);
+    sanitizedDescription = sanitizedDescription.slice(
+      0,
+      Math.max(0, sanitizedDescription.length - overBy)
+    );
+    result = formatPromptTemplate(
+      sanitizedSubject,
+      sanitizedDescription,
+      config.workingDirectory,
+      inboxContext
+    );
     if (result.length > MAX_PROMPT_SIZE) {
       const stillOverBy = result.length - MAX_PROMPT_SIZE;
-      sanitizedDescription = sanitizedDescription.slice(0, Math.max(0, sanitizedDescription.length - stillOverBy));
-      result = formatPromptTemplate(sanitizedSubject, sanitizedDescription, config.workingDirectory, inboxContext);
+      sanitizedDescription = sanitizedDescription.slice(
+        0,
+        Math.max(0, sanitizedDescription.length - stillOverBy)
+      );
+      result = formatPromptTemplate(
+        sanitizedSubject,
+        sanitizedDescription,
+        config.workingDirectory,
+        inboxContext
+      );
     }
   }
   return result;
@@ -1170,7 +1214,10 @@ function getOutputPath(config, taskId) {
   const dir = (0, import_path10.join)(config.workingDirectory, ".omc", "outputs");
   ensureDirWithMode(dir);
   const suffix = Math.random().toString(36).slice(2, 8);
-  return (0, import_path10.join)(dir, `team-${config.teamName}-task-${taskId}-${Date.now()}-${suffix}.md`);
+  return (0, import_path10.join)(
+    dir,
+    `team-${config.teamName}-task-${taskId}-${Date.now()}-${suffix}.md`
+  );
 }
 function readOutputSummary(outputFile) {
   try {
@@ -1195,7 +1242,10 @@ function readOutputSummary(outputFile) {
 function recordTaskCompletionUsage(args) {
   const completedAt = (/* @__PURE__ */ new Date()).toISOString();
   const wallClockMs = Math.max(0, Date.now() - args.startedAt);
-  const { promptChars, responseChars } = measureCharCounts(args.promptFile, args.outputFile);
+  const { promptChars, responseChars } = measureCharCounts(
+    args.promptFile,
+    args.outputFile
+  );
   recordTaskUsage(args.config.workingDirectory, args.config.teamName, {
     taskId: args.taskId,
     workerName: args.config.workerName,
@@ -1247,11 +1297,20 @@ function parseCodexOutput(output) {
   return messages.join("\n") || output;
 }
 function spawnCliProcess(provider, prompt, model, cwd, timeoutMs) {
+  validateProvider(provider);
+  validateModelName(model);
   let args;
   let cmd;
   if (provider === "codex") {
     cmd = "codex";
-    args = ["exec", "-m", model || "gpt-5.3-codex", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"];
+    args = [
+      "exec",
+      "-m",
+      model || "gpt-5.3-codex",
+      "--json",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check"
+    ];
   } else {
     cmd = "gemini";
     args = ["--yolo"];
@@ -1259,8 +1318,7 @@ function spawnCliProcess(provider, prompt, model, cwd, timeoutMs) {
   }
   const child = (0, import_child_process2.spawn)(cmd, args, {
     stdio: ["pipe", "pipe", "pipe"],
-    cwd,
-    ...process.platform === "win32" ? { shell: true } : {}
+    cwd
   });
   const result = new Promise((resolve5, reject) => {
     let stdout = "";
@@ -1356,30 +1414,47 @@ async function runBridge(config) {
   log(`[bridge] ${workerName}@${teamName} starting (${provider})`);
   audit(config, "bridge_start");
   try {
-    writeHeartbeat(workingDirectory, buildHeartbeat(config, "polling", null, 0));
+    writeHeartbeat(
+      workingDirectory,
+      buildHeartbeat(config, "polling", null, 0)
+    );
   } catch (err) {
-    audit(config, "bridge_start", void 0, { warning: "startup_write_failed", error: String(err) });
+    audit(config, "bridge_start", void 0, {
+      warning: "startup_write_failed",
+      error: String(err)
+    });
   }
   let readyEmitted = false;
   while (true) {
     try {
       const shutdown = checkShutdownSignal(teamName, workerName);
       if (shutdown) {
-        audit(config, "shutdown_received", void 0, { requestId: shutdown.requestId, reason: shutdown.reason });
+        audit(config, "shutdown_received", void 0, {
+          requestId: shutdown.requestId,
+          reason: shutdown.reason
+        });
         await handleShutdown(config, shutdown, activeChild);
         break;
       }
       const drain = checkDrainSignal(teamName, workerName);
       if (drain) {
         log(`[bridge] Drain signal received: ${drain.reason}`);
-        audit(config, "shutdown_received", void 0, { requestId: drain.requestId, reason: drain.reason, type: "drain" });
+        audit(config, "shutdown_received", void 0, {
+          requestId: drain.requestId,
+          reason: drain.reason,
+          type: "drain"
+        });
         appendOutbox(teamName, workerName, {
           type: "shutdown_ack",
           requestId: drain.requestId,
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         });
         deleteDrainSignal(teamName, workerName);
-        await handleShutdown(config, { requestId: drain.requestId, reason: `drain: ${drain.reason}` }, null);
+        await handleShutdown(
+          config,
+          { requestId: drain.requestId, reason: `drain: ${drain.reason}` },
+          null
+        );
         break;
       }
       if (consecutiveErrors >= config.maxConsecutiveErrors) {
@@ -1392,14 +1467,23 @@ async function runBridge(config) {
           audit(config, "worker_quarantined", void 0, { consecutiveErrors });
           quarantineNotified = true;
         }
-        writeHeartbeat(workingDirectory, buildHeartbeat(config, "quarantined", null, consecutiveErrors));
+        writeHeartbeat(
+          workingDirectory,
+          buildHeartbeat(config, "quarantined", null, consecutiveErrors)
+        );
         await sleep(config.pollIntervalMs * 3);
         continue;
       }
-      writeHeartbeat(workingDirectory, buildHeartbeat(config, "polling", null, consecutiveErrors));
+      writeHeartbeat(
+        workingDirectory,
+        buildHeartbeat(config, "polling", null, consecutiveErrors)
+      );
       if (!readyEmitted) {
         try {
-          writeHeartbeat(workingDirectory, buildHeartbeat(config, "ready", null, 0));
+          writeHeartbeat(
+            workingDirectory,
+            buildHeartbeat(config, "ready", null, 0)
+          );
           appendOutbox(teamName, workerName, {
             type: "ready",
             message: `Worker ${workerName} is ready (${provider})`,
@@ -1408,7 +1492,10 @@ async function runBridge(config) {
           audit(config, "worker_ready");
           readyEmitted = true;
         } catch (err) {
-          audit(config, "bridge_start", void 0, { warning: "startup_write_failed", error: String(err) });
+          audit(config, "bridge_start", void 0, {
+            warning: "startup_write_failed",
+            error: String(err)
+          });
         }
       }
       const messages = readNewInboxMessages(teamName, workerName);
@@ -1418,10 +1505,16 @@ async function runBridge(config) {
         updateTask(teamName, task.id, { status: "in_progress" });
         audit(config, "task_claimed", task.id);
         audit(config, "task_started", task.id);
-        writeHeartbeat(workingDirectory, buildHeartbeat(config, "executing", task.id, consecutiveErrors));
+        writeHeartbeat(
+          workingDirectory,
+          buildHeartbeat(config, "executing", task.id, consecutiveErrors)
+        );
         const shutdownBeforeSpawn = checkShutdownSignal(teamName, workerName);
         if (shutdownBeforeSpawn) {
-          audit(config, "shutdown_received", task.id, { requestId: shutdownBeforeSpawn.requestId, reason: shutdownBeforeSpawn.reason });
+          audit(config, "shutdown_received", task.id, {
+            requestId: shutdownBeforeSpawn.requestId,
+            reason: shutdownBeforeSpawn.reason
+          });
           updateTask(teamName, task.id, { status: "pending" });
           await handleShutdown(config, shutdownBeforeSpawn, null);
           return;
@@ -1446,7 +1539,10 @@ async function runBridge(config) {
             config.taskTimeoutMs
           );
           activeChild = child;
-          audit(config, "cli_spawned", task.id, { provider, model: config.model });
+          audit(config, "cli_spawned", task.id, {
+            provider,
+            model: config.model
+          });
           const response = await result;
           activeChild = null;
           writeFileWithMode(outputFile, response);
@@ -1456,14 +1552,21 @@ async function runBridge(config) {
             const changedPaths = diffSnapshots(preSnapshot, postSnapshot);
             if (changedPaths.length > 0) {
               const effectivePerms = buildEffectivePermissions(config);
-              violations = findPermissionViolations(changedPaths, effectivePerms, workingDirectory);
+              violations = findPermissionViolations(
+                changedPaths,
+                effectivePerms,
+                workingDirectory
+              );
             }
           }
           if (violations.length > 0) {
             const violationSummary = violations.map((v) => `  - ${v.path}: ${v.reason}`).join("\n");
             if (enforcementMode === "enforce") {
               audit(config, "permission_violation", task.id, {
-                violations: violations.map((v) => ({ path: v.path, reason: v.reason })),
+                violations: violations.map((v) => ({
+                  path: v.path,
+                  reason: v.reason
+                })),
                 mode: "enforce"
               });
               updateTask(teamName, task.id, {
@@ -1482,7 +1585,9 @@ async function runBridge(config) {
 ${violationSummary}`,
                 timestamp: (/* @__PURE__ */ new Date()).toISOString()
               });
-              log(`[bridge] Task ${task.id} failed: permission violations (enforce mode)`);
+              log(
+                `[bridge] Task ${task.id} failed: permission violations (enforce mode)`
+              );
               try {
                 recordTaskCompletionUsage({
                   config,
@@ -1494,16 +1599,23 @@ ${violationSummary}`,
                   startedAtIso: taskStartedAtIso
                 });
               } catch (usageErr) {
-                log(`[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`);
+                log(
+                  `[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`
+                );
               }
               consecutiveErrors = 0;
             } else {
               audit(config, "permission_audit", task.id, {
-                violations: violations.map((v) => ({ path: v.path, reason: v.reason })),
+                violations: violations.map((v) => ({
+                  path: v.path,
+                  reason: v.reason
+                })),
                 mode: "audit"
               });
-              log(`[bridge] Permission audit warning for task ${task.id}:
-${violationSummary}`);
+              log(
+                `[bridge] Permission audit warning for task ${task.id}:
+${violationSummary}`
+              );
               updateTask(teamName, task.id, { status: "completed" });
               audit(config, "task_completed", task.id);
               consecutiveErrors = 0;
@@ -1526,9 +1638,13 @@ ${violationSummary}`);
                   startedAtIso: taskStartedAtIso
                 });
               } catch (usageErr) {
-                log(`[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`);
+                log(
+                  `[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`
+                );
               }
-              log(`[bridge] Task ${task.id} completed (with ${violations.length} audit warning(s))`);
+              log(
+                `[bridge] Task ${task.id} completed (with ${violations.length} audit warning(s))`
+              );
             }
           } else {
             updateTask(teamName, task.id, { status: "completed" });
@@ -1552,7 +1668,9 @@ ${violationSummary}`);
                 startedAtIso: taskStartedAtIso
               });
             } catch (usageErr) {
-              log(`[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`);
+              log(
+                `[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`
+              );
             }
             log(`[bridge] Task ${task.id} completed`);
           }
@@ -1565,7 +1683,9 @@ ${violationSummary}`);
           } else {
             audit(config, "cli_error", task.id, { error: errorMsg });
           }
-          const failure = writeTaskFailure(teamName, task.id, errorMsg, { cwd: workingDirectory });
+          const failure = writeTaskFailure(teamName, task.id, errorMsg, {
+            cwd: workingDirectory
+          });
           const attempt = failure.retryCount;
           if (attempt >= (config.maxRetries ?? 5)) {
             updateTask(teamName, task.id, {
@@ -1577,7 +1697,10 @@ ${violationSummary}`);
                 failedAttempts: attempt
               }
             });
-            audit(config, "task_permanently_failed", task.id, { error: errorMsg, attempts: attempt });
+            audit(config, "task_permanently_failed", task.id, {
+              error: errorMsg,
+              attempts: attempt
+            });
             appendOutbox(teamName, workerName, {
               type: "error",
               taskId: task.id,
@@ -1595,9 +1718,13 @@ ${violationSummary}`);
                 startedAtIso: taskStartedAtIso
               });
             } catch (usageErr) {
-              log(`[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`);
+              log(
+                `[bridge] usage tracking failed for task ${task.id}: ${usageErr.message}`
+              );
             }
-            log(`[bridge] Task ${task.id} permanently failed after ${attempt} attempts`);
+            log(
+              `[bridge] Task ${task.id} permanently failed after ${attempt} attempts`
+            );
           } else {
             updateTask(teamName, task.id, { status: "pending" });
             audit(config, "task_failed", task.id, { error: errorMsg, attempt });
@@ -1607,7 +1734,9 @@ ${violationSummary}`);
               error: `${errorMsg} (attempt ${attempt})`,
               timestamp: (/* @__PURE__ */ new Date()).toISOString()
             });
-            log(`[bridge] Task ${task.id} failed (attempt ${attempt}): ${errorMsg}`);
+            log(
+              `[bridge] Task ${task.id} failed (attempt ${attempt}): ${errorMsg}`
+            );
           }
         }
       } else {
@@ -1621,7 +1750,9 @@ ${violationSummary}`);
           idleNotified = true;
         }
         try {
-          const teamStatus = getTeamStatus(teamName, workingDirectory, 3e4, { includeUsage: false });
+          const teamStatus = getTeamStatus(teamName, workingDirectory, 3e4, {
+            includeUsage: false
+          });
           if (teamStatus.taskSummary.total > 0 && teamStatus.taskSummary.pending === 0 && teamStatus.taskSummary.inProgress === 0) {
             log(`[bridge] All team tasks complete. Auto-terminating worker.`);
             appendOutbox(teamName, workerName, {
@@ -1629,12 +1760,20 @@ ${violationSummary}`);
               message: "All team tasks reached terminal state. Worker self-terminating.",
               timestamp: (/* @__PURE__ */ new Date()).toISOString()
             });
-            audit(config, "bridge_shutdown", void 0, { reason: "auto_cleanup_all_tasks_complete" });
-            await handleShutdown(config, { requestId: "auto-cleanup", reason: "all_tasks_complete" }, activeChild);
+            audit(config, "bridge_shutdown", void 0, {
+              reason: "auto_cleanup_all_tasks_complete"
+            });
+            await handleShutdown(
+              config,
+              { requestId: "auto-cleanup", reason: "all_tasks_complete" },
+              activeChild
+            );
             break;
           }
         } catch (err) {
-          log(`[bridge] Auto-cleanup status check failed: ${err.message}`);
+          log(
+            `[bridge] Auto-cleanup status check failed: ${err.message}`
+          );
         }
       }
       rotateOutboxIfNeeded(teamName, workerName, config.outboxMaxLines);
@@ -1668,7 +1807,8 @@ function getWorktreeRoot(cwd) {
     const root = (0, import_child_process3.execSync)("git rev-parse --show-toplevel", {
       cwd: effectiveCwd,
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 5e3
     }).trim();
     if (worktreeCacheMap.size >= MAX_WORKTREE_CACHE_SIZE) {
       const oldest = worktreeCacheMap.keys().next().value;

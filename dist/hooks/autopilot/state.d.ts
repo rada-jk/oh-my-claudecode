@@ -6,7 +6,7 @@
  * - Phase transitions, especially Ralph → UltraQA and UltraQA → Validation
  * - State machine operations
  */
-import type { AutopilotState, AutopilotPhase, AutopilotConfig } from './types.js';
+import type { AutopilotState, AutopilotPhase, AutopilotConfig } from "./types.js";
 /**
  * Ensure the autopilot directory exists
  */
@@ -47,23 +47,23 @@ export declare function incrementAgentCount(directory: string, count?: number, s
 /**
  * Update expansion phase data
  */
-export declare function updateExpansion(directory: string, updates: Partial<AutopilotState['expansion']>, sessionId?: string): boolean;
+export declare function updateExpansion(directory: string, updates: Partial<AutopilotState["expansion"]>, sessionId?: string): boolean;
 /**
  * Update planning phase data
  */
-export declare function updatePlanning(directory: string, updates: Partial<AutopilotState['planning']>, sessionId?: string): boolean;
+export declare function updatePlanning(directory: string, updates: Partial<AutopilotState["planning"]>, sessionId?: string): boolean;
 /**
  * Update execution phase data
  */
-export declare function updateExecution(directory: string, updates: Partial<AutopilotState['execution']>, sessionId?: string): boolean;
+export declare function updateExecution(directory: string, updates: Partial<AutopilotState["execution"]>, sessionId?: string): boolean;
 /**
  * Update QA phase data
  */
-export declare function updateQA(directory: string, updates: Partial<AutopilotState['qa']>, sessionId?: string): boolean;
+export declare function updateQA(directory: string, updates: Partial<AutopilotState["qa"]>, sessionId?: string): boolean;
 /**
  * Update validation phase data
  */
-export declare function updateValidation(directory: string, updates: Partial<AutopilotState['validation']>, sessionId?: string): boolean;
+export declare function updateValidation(directory: string, updates: Partial<AutopilotState["validation"]>, sessionId?: string): boolean;
 /**
  * Get the spec file path
  */

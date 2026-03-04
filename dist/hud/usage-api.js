@@ -17,6 +17,7 @@ import { join, dirname } from 'path';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import https from 'https';
+import { validateAnthropicBaseUrl } from '../utils/ssrf-guard.js';
 // Cache configuration
 const CACHE_TTL_SUCCESS_MS = 30 * 1000; // 30 seconds for successful responses
 const CACHE_TTL_FAILURE_MS = 15 * 1000; // 15 seconds for failures
@@ -304,6 +305,13 @@ function fetchUsageFromZai() {
         const baseUrl = process.env.ANTHROPIC_BASE_URL;
         const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
         if (!baseUrl || !authToken) {
+            resolve(null);
+            return;
+        }
+        // Validate baseUrl for SSRF protection
+        const validation = validateAnthropicBaseUrl(baseUrl);
+        if (!validation.allowed) {
+            console.error(`[SSRF Guard] Blocking usage API call: ${validation.reason}`);
             resolve(null);
             return;
         }

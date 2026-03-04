@@ -43,7 +43,7 @@ describe('mcp-team-bridge usage recording', () => {
     });
     it('uses writeTaskFailure return value for retry attempt checks', () => {
         const source = readFileSync(join(__dirname, '..', 'mcp-team-bridge.ts'), 'utf-8');
-        expect(source).toContain("const failure = writeTaskFailure(teamName, task.id, errorMsg, { cwd: workingDirectory });");
+        expect(source).toContain('const failure = writeTaskFailure(teamName, task.id, errorMsg,');
         expect(source).toContain('const attempt = failure.retryCount;');
         expect(source).toContain('if (attempt >= (config.maxRetries ?? 5))');
     });

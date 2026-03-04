@@ -534,11 +534,26 @@ export async function spawnWorkerForTask(runtime, workerNameValue, taskIndex) {
         runtime.resolvedBinaryPaths = {};
     }
     runtime.resolvedBinaryPaths[agentType] = resolvedBinaryPath;
+    // Resolve model from environment variables based on agent type
+    const modelForAgent = (() => {
+        if (agentType === 'codex') {
+            return process.env.OMC_EXTERNAL_MODELS_DEFAULT_CODEX_MODEL
+                || process.env.OMC_CODEX_DEFAULT_MODEL
+                || undefined;
+        }
+        if (agentType === 'gemini') {
+            return process.env.OMC_EXTERNAL_MODELS_DEFAULT_GEMINI_MODEL
+                || process.env.OMC_GEMINI_DEFAULT_MODEL
+                || undefined;
+        }
+        return undefined;
+    })();
     const [launchBinary, ...launchArgs] = buildWorkerArgv(agentType, {
         teamName: runtime.teamName,
         workerName: workerNameValue,
         cwd: runtime.cwd,
         resolvedBinaryPath,
+        model: modelForAgent,
     });
     // For prompt-mode agents (e.g. Gemini Ink TUI), pass instruction via CLI
     // flag so tmux send-keys never needs to interact with the TUI input widget.

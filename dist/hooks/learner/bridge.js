@@ -24,6 +24,7 @@ const MAX_RECURSION_DEPTH = 10;
 const LEVENSHTEIN_CACHE_SIZE = 1000;
 /** Skill metadata cache TTL in milliseconds (30 seconds) */
 const SKILL_CACHE_TTL_MS = 30 * 1000;
+const MAX_CACHE_ENTRIES = 50;
 // =============================================================================
 // Performance Caches
 // =============================================================================
@@ -62,6 +63,8 @@ function getSkillMetadataCache(projectRoot) {
     const cached = skillMetadataCache.get(projectRoot);
     const now = Date.now();
     if (cached && now - cached.timestamp < SKILL_CACHE_TTL_MS) {
+        skillMetadataCache.delete(projectRoot);
+        skillMetadataCache.set(projectRoot, cached);
         return cached.skills;
     }
     // Refresh cache
@@ -90,6 +93,11 @@ function getSkillMetadataCache(projectRoot) {
         catch {
             // Ignore file read errors
         }
+    }
+    if (skillMetadataCache.size >= MAX_CACHE_ENTRIES) {
+        const firstKey = skillMetadataCache.keys().next().value;
+        if (firstKey !== undefined)
+            skillMetadataCache.delete(firstKey);
     }
     skillMetadataCache.set(projectRoot, { skills, timestamp: now });
     return skills;

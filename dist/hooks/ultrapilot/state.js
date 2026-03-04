@@ -4,21 +4,21 @@
  * Persistent state for ultrapilot workflow - tracks parallel workers,
  * file ownership, and progress.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { DEFAULT_CONFIG } from './types.js';
-import { resolveSessionStatePath, ensureSessionStateDir, getOmcRoot } from '../../lib/worktree-paths.js';
-import { writeModeState, readModeState } from '../../lib/mode-state-io.js';
-const STATE_FILE = 'ultrapilot-state.json';
-const OWNERSHIP_FILE = 'ultrapilot-ownership.json';
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "fs";
+import { join } from "path";
+import { DEFAULT_CONFIG } from "./types.js";
+import { resolveSessionStatePath, ensureSessionStateDir, getOmcRoot, } from "../../lib/worktree-paths.js";
+import { writeModeState, readModeState } from "../../lib/mode-state-io.js";
+const STATE_FILE = "ultrapilot-state.json";
+const OWNERSHIP_FILE = "ultrapilot-ownership.json";
 /**
  * Get the state file path
  */
 function getStateFilePath(directory, sessionId) {
     if (sessionId) {
-        return resolveSessionStatePath('ultrapilot', sessionId, directory);
+        return resolveSessionStatePath("ultrapilot", sessionId, directory);
     }
-    const omcDir = join(getOmcRoot(directory), 'state');
+    const omcDir = join(getOmcRoot(directory), "state");
     return join(omcDir, STATE_FILE);
 }
 /**
@@ -27,10 +27,10 @@ function getStateFilePath(directory, sessionId) {
 function getOwnershipFilePath(directory, sessionId) {
     if (sessionId) {
         // Store ownership file next to state file in session directory
-        const sessionDir = join(getOmcRoot(directory), 'state', 'sessions', sessionId);
+        const sessionDir = join(getOmcRoot(directory), "state", "sessions", sessionId);
         return join(sessionDir, OWNERSHIP_FILE);
     }
-    const omcDir = join(getOmcRoot(directory), 'state');
+    const omcDir = join(getOmcRoot(directory), "state");
     return join(omcDir, OWNERSHIP_FILE);
 }
 /**
@@ -41,22 +41,20 @@ function ensureStateDir(directory, sessionId) {
         ensureSessionStateDir(sessionId, directory);
         return;
     }
-    const stateDir = join(getOmcRoot(directory), 'state');
-    if (!existsSync(stateDir)) {
-        mkdirSync(stateDir, { recursive: true });
-    }
+    const stateDir = join(getOmcRoot(directory), "state");
+    mkdirSync(stateDir, { recursive: true });
 }
 /**
  * Read ultrapilot state from disk
  */
 export function readUltrapilotState(directory, sessionId) {
-    return readModeState('ultrapilot', directory, sessionId);
+    return readModeState("ultrapilot", directory, sessionId);
 }
 /**
  * Write ultrapilot state to disk
  */
 export function writeUltrapilotState(directory, state, sessionId) {
-    return writeModeState('ultrapilot', state, directory, sessionId);
+    return writeModeState("ultrapilot", state, directory, sessionId);
 }
 /**
  * Clear ultrapilot state
@@ -65,11 +63,21 @@ export function clearUltrapilotState(directory, sessionId) {
     const stateFile = getStateFilePath(directory, sessionId);
     const ownershipFile = getOwnershipFilePath(directory, sessionId);
     try {
-        if (existsSync(stateFile)) {
+        try {
             unlinkSync(stateFile);
         }
-        if (existsSync(ownershipFile)) {
+        catch (error) {
+            if (error.code !== "ENOENT") {
+                throw error;
+            }
+        }
+        try {
             unlinkSync(ownershipFile);
+        }
+        catch (error) {
+            if (error.code !== "ENOENT") {
+                throw error;
+            }
         }
         return true;
     }
@@ -100,7 +108,7 @@ export function initUltrapilot(directory, task, subtasks, sessionId, config) {
         ownership: {
             coordinator: mergedConfig.sharedFiles,
             workers: {},
-            conflicts: []
+            conflicts: [],
         },
         startedAt: now,
         completedAt: null,
@@ -108,7 +116,7 @@ export function initUltrapilot(directory, task, subtasks, sessionId, config) {
         successfulWorkers: 0,
         failedWorkers: 0,
         sessionId,
-        project_path: directory
+        project_path: directory,
     };
     writeUltrapilotState(directory, state, sessionId);
     return state;
@@ -149,7 +157,7 @@ export function completeWorker(directory, workerId, filesCreated, filesModified,
     const workerIndex = state.workers.findIndex((w) => w.id === workerId);
     if (workerIndex === -1)
         return false;
-    state.workers[workerIndex].status = 'complete';
+    state.workers[workerIndex].status = "complete";
     state.workers[workerIndex].completedAt = new Date().toISOString();
     state.workers[workerIndex].filesCreated = filesCreated;
     state.workers[workerIndex].filesModified = filesModified;
@@ -166,7 +174,7 @@ export function failWorker(directory, workerId, error, sessionId) {
     const workerIndex = state.workers.findIndex((w) => w.id === workerId);
     if (workerIndex === -1)
         return false;
-    state.workers[workerIndex].status = 'failed';
+    state.workers[workerIndex].status = "failed";
     state.workers[workerIndex].completedAt = new Date().toISOString();
     state.workers[workerIndex].error = error;
     state.failedWorkers += 1;
@@ -190,26 +198,24 @@ export function readFileOwnership(directory, sessionId) {
     // Try session-scoped path first
     if (sessionId) {
         const sessionFile = getOwnershipFilePath(directory, sessionId);
-        if (existsSync(sessionFile)) {
-            try {
-                const content = readFileSync(sessionFile, 'utf-8');
-                return JSON.parse(content);
-            }
-            catch {
-                // Fall through to legacy path
-            }
+        try {
+            const content = readFileSync(sessionFile, "utf-8");
+            return JSON.parse(content);
+        }
+        catch {
+            // Fall through to legacy path
         }
     }
     // Fallback to legacy path
     const ownershipFile = getOwnershipFilePath(directory);
-    if (!existsSync(ownershipFile)) {
-        return null;
-    }
     try {
-        const content = readFileSync(ownershipFile, 'utf-8');
+        const content = readFileSync(ownershipFile, "utf-8");
         return JSON.parse(content);
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return null;
+        }
         return null;
     }
 }
@@ -246,7 +252,7 @@ export function getCompletedWorkers(directory, sessionId) {
     const state = readUltrapilotState(directory, sessionId);
     if (!state)
         return [];
-    return state.workers.filter((w) => w.status === 'complete');
+    return state.workers.filter((w) => w.status === "complete");
 }
 /**
  * Get all running workers
@@ -255,7 +261,7 @@ export function getRunningWorkers(directory, sessionId) {
     const state = readUltrapilotState(directory, sessionId);
     if (!state)
         return [];
-    return state.workers.filter((w) => w.status === 'running');
+    return state.workers.filter((w) => w.status === "running");
 }
 /**
  * Get all failed workers
@@ -264,6 +270,6 @@ export function getFailedWorkers(directory, sessionId) {
     const state = readUltrapilotState(directory, sessionId);
     if (!state)
         return [];
-    return state.workers.filter((w) => w.status === 'failed');
+    return state.workers.filter((w) => w.status === "failed");
 }
 //# sourceMappingURL=state.js.map

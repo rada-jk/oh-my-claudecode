@@ -4,30 +4,31 @@
  * Automatically injects relevant learned skills into context
  * based on message content triggers.
  */
-import { contextCollector } from '../../features/context-injector/index.js';
-import { loadAllSkills, findMatchingSkills } from './loader.js';
-import { MAX_SKILLS_PER_SESSION } from './constants.js';
-import { loadConfig } from './config.js';
+import { contextCollector } from "../../features/context-injector/index.js";
+import { loadAllSkills, findMatchingSkills } from "./loader.js";
+import { MAX_SKILLS_PER_SESSION } from "./constants.js";
+import { loadConfig } from "./config.js";
 // Re-export submodules
-export * from './types.js';
-export * from './constants.js';
-export * from './finder.js';
-export * from './parser.js';
-export * from './loader.js';
-export * from './validator.js';
-export * from './writer.js';
-export * from './detector.js';
-export * from './detection-hook.js';
-export * from './promotion.js';
-export * from './config.js';
-export * from './matcher.js';
-export * from './auto-invoke.js';
+export * from "./types.js";
+export * from "./constants.js";
+export * from "./finder.js";
+export * from "./parser.js";
+export * from "./loader.js";
+export * from "./validator.js";
+export * from "./writer.js";
+export * from "./detector.js";
+export * from "./detection-hook.js";
+export * from "./promotion.js";
+export * from "./config.js";
+export * from "./matcher.js";
+export * from "./auto-invoke.js";
 // Note: auto-learner exports are renamed to avoid collision with ralph's recordPattern
-export { initAutoLearner, calculateSkillWorthiness, extractTriggers, getSuggestedSkills, patternToSkillMetadata, recordPattern as recordSkillPattern, } from './auto-learner.js';
+export { initAutoLearner, calculateSkillWorthiness, extractTriggers, getSuggestedSkills, patternToSkillMetadata, recordPattern as recordSkillPattern, } from "./auto-learner.js";
 /**
  * Session cache for tracking injected skills.
  */
 const sessionCaches = new Map();
+const MAX_SESSIONS = 100;
 /**
  * Check if feature is enabled.
  */
@@ -39,29 +40,29 @@ export function isLearnerEnabled() {
  */
 function formatSkillsForContext(skills) {
     if (skills.length === 0)
-        return '';
+        return "";
     const lines = [
-        '<learner>',
-        '',
-        '## Relevant Learned Skills',
-        '',
-        'The following skills have been learned from previous sessions and may be helpful:',
-        '',
+        "<learner>",
+        "",
+        "## Relevant Learned Skills",
+        "",
+        "The following skills have been learned from previous sessions and may be helpful:",
+        "",
     ];
     for (const skill of skills) {
         lines.push(`### ${skill.metadata.name}`);
-        lines.push(`**Triggers:** ${skill.metadata.triggers.join(', ')}`);
+        lines.push(`**Triggers:** ${skill.metadata.triggers.join(", ")}`);
         if (skill.metadata.tags && skill.metadata.tags.length > 0) {
-            lines.push(`**Tags:** ${skill.metadata.tags.join(', ')}`);
+            lines.push(`**Tags:** ${skill.metadata.tags.join(", ")}`);
         }
-        lines.push('');
+        lines.push("");
         lines.push(skill.content);
-        lines.push('');
-        lines.push('---');
-        lines.push('');
+        lines.push("");
+        lines.push("---");
+        lines.push("");
     }
-    lines.push('</learner>');
-    return lines.join('\n');
+    lines.push("</learner>");
+    return lines.join("\n");
 }
 /**
  * Process a user message and inject matching skills.
@@ -72,12 +73,17 @@ export function processMessageForSkills(message, sessionId, projectRoot) {
     }
     // Get or create session cache
     if (!sessionCaches.has(sessionId)) {
+        if (sessionCaches.size >= MAX_SESSIONS) {
+            const firstKey = sessionCaches.keys().next().value;
+            if (firstKey !== undefined)
+                sessionCaches.delete(firstKey);
+        }
         sessionCaches.set(sessionId, new Set());
     }
     const injectedHashes = sessionCaches.get(sessionId);
     // Find matching skills not already injected
     const matchingSkills = findMatchingSkills(message, projectRoot, MAX_SKILLS_PER_SESSION);
-    const newSkills = matchingSkills.filter(s => !injectedHashes.has(s.contentHash));
+    const newSkills = matchingSkills.filter((s) => !injectedHashes.has(s.contentHash));
     if (newSkills.length === 0) {
         return { injected: 0, skills: [] };
     }
@@ -88,13 +94,13 @@ export function processMessageForSkills(message, sessionId, projectRoot) {
     // Register with context collector
     const content = formatSkillsForContext(newSkills);
     contextCollector.register(sessionId, {
-        id: 'learner',
-        source: 'learner',
+        id: "learner",
+        source: "learner",
         content,
-        priority: 'normal',
+        priority: "normal",
         metadata: {
             skillCount: newSkills.length,
-            skillIds: newSkills.map(s => s.metadata.id),
+            skillIds: newSkills.map((s) => s.metadata.id),
         },
     });
     return { injected: newSkills.length, skills: newSkills };

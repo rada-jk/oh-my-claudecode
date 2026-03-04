@@ -21351,7 +21351,8 @@ function getWorktreeRoot(cwd) {
     const root = (0, import_child_process8.execSync)("git rev-parse --show-toplevel", {
       cwd: effectiveCwd,
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 5e3
     }).trim();
     if (worktreeCacheMap.size >= MAX_WORKTREE_CACHE_SIZE) {
       const oldest = worktreeCacheMap.keys().next().value;
@@ -21667,9 +21668,6 @@ function isJsonModeActive(cwd, mode, sessionId) {
   const config2 = MODE_CONFIGS[mode];
   if (sessionId) {
     const sessionStateFile = resolveSessionStatePath(mode, sessionId, cwd);
-    if (!(0, import_fs8.existsSync)(sessionStateFile)) {
-      return false;
-    }
     try {
       const content = (0, import_fs8.readFileSync)(sessionStateFile, "utf-8");
       const state = JSON.parse(content);
@@ -21680,14 +21678,14 @@ function isJsonModeActive(cwd, mode, sessionId) {
         return state[config2.activeProperty] === true;
       }
       return true;
-    } catch {
+    } catch (error2) {
+      if (error2.code === "ENOENT") {
+        return false;
+      }
       return false;
     }
   }
   const stateFile = getStateFilePath(cwd, mode);
-  if (!(0, import_fs8.existsSync)(stateFile)) {
-    return false;
-  }
   try {
     const content = (0, import_fs8.readFileSync)(stateFile, "utf-8");
     const state = JSON.parse(content);
@@ -21695,7 +21693,10 @@ function isJsonModeActive(cwd, mode, sessionId) {
       return state[config2.activeProperty] === true;
     }
     return true;
-  } catch {
+  } catch (error2) {
+    if (error2.code === "ENOENT") {
+      return false;
+    }
     return false;
   }
 }
@@ -21734,7 +21735,11 @@ function clearModeState(mode, cwd, sessionId) {
     }
     if (config2.markerFile) {
       const markerStateName = config2.markerFile.replace(/\.json$/i, "");
-      const sessionMarkerFile = resolveSessionStatePath(markerStateName, sessionId, cwd);
+      const sessionMarkerFile = resolveSessionStatePath(
+        markerStateName,
+        sessionId,
+        cwd
+      );
       try {
         (0, import_fs8.unlinkSync)(sessionMarkerFile);
       } catch (err) {

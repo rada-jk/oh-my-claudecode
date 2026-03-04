@@ -294,6 +294,7 @@ export interface HudElementConfig {
     cwdFormat: CwdFormat;
     gitRepo: boolean;
     gitBranch: boolean;
+    gitInfoPosition: 'above' | 'below';
     model: boolean;
     modelFormat: ModelFormat;
     omcLabel: boolean;

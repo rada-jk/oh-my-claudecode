@@ -1,4 +1,4 @@
-import type { BridgeConfig } from './types.js';
+import type { BridgeConfig } from "./types.js";
 /**
  * Capture a snapshot of tracked/modified/untracked files in the working directory.
  * Uses `git status --porcelain` + `git ls-files --others --exclude-standard`.
@@ -17,7 +17,7 @@ export declare function recordTaskCompletionUsage(args: {
     taskId: string;
     promptFile: string;
     outputFile: string;
-    provider: 'codex' | 'gemini';
+    provider: "codex" | "gemini";
     startedAt: number;
     startedAtIso: string;
 }): void;

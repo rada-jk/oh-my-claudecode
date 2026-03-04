@@ -1,18 +1,4 @@
 /**
- * Centralized Model ID Constants
- *
- * All default model IDs are defined here so they can be overridden
- * via environment variables without editing source code.
- *
- * Environment variables (highest precedence):
- *   OMC_MODEL_HIGH    - Model ID for HIGH tier (opus-class)
- *   OMC_MODEL_MEDIUM  - Model ID for MEDIUM tier (sonnet-class)
- *   OMC_MODEL_LOW     - Model ID for LOW tier (haiku-class)
- *
- * User config (~/.config/claude-omc/config.jsonc) can also override
- * via `routing.tierModels` or per-agent `agents.<name>.model`.
- */
-/**
  * Resolve the default model ID for a tier.
  *
  * Resolution order:

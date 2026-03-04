@@ -56,6 +56,7 @@ export function getWorktreeRoot(cwd) {
             cwd: effectiveCwd,
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 5000,
         }).trim();
         // Evict oldest entry when at capacity
         if (worktreeCacheMap.size >= MAX_WORKTREE_CACHE_SIZE) {
@@ -344,6 +345,42 @@ export function validateSessionId(sessionId) {
     if (!SESSION_ID_REGEX.test(sessionId)) {
         throw new Error(`Invalid session ID: must be alphanumeric with hyphens/underscores, max 256 chars (${sessionId})`);
     }
+}
+/**
+ * Validate a transcript path to prevent arbitrary file reads.
+ * Transcript files should only be read from known Claude directories.
+ *
+ * @param transcriptPath - The transcript path to validate
+ * @returns true if path is valid, false otherwise
+ */
+export function isValidTranscriptPath(transcriptPath) {
+    if (!transcriptPath || typeof transcriptPath !== 'string') {
+        return false;
+    }
+    // Reject path traversal
+    if (transcriptPath.includes('..')) {
+        return false;
+    }
+    // Must be absolute
+    if (!isAbsolute(transcriptPath) && !transcriptPath.startsWith('~')) {
+        return false;
+    }
+    // Expand home directory if present
+    let expandedPath = transcriptPath;
+    if (transcriptPath.startsWith('~')) {
+        expandedPath = join(homedir(), transcriptPath.slice(1));
+    }
+    // Normalize and check it's within allowed directories
+    const normalized = normalize(expandedPath);
+    const home = homedir();
+    // Allowed: ~/.claude/..., ~/.omc/..., /tmp/...
+    const allowedPrefixes = [
+        join(home, '.claude'),
+        join(home, '.omc'),
+        '/tmp',
+        '/var/folders', // macOS temp
+    ];
+    return allowedPrefixes.some(prefix => normalized.startsWith(prefix));
 }
 /**
  * Resolve a session-scoped state file path.

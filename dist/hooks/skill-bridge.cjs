@@ -74,6 +74,7 @@ var SESSION_TTL_MS = 60 * 60 * 1e3;
 var MAX_RECURSION_DEPTH = 10;
 var LEVENSHTEIN_CACHE_SIZE = 1e3;
 var SKILL_CACHE_TTL_MS = 30 * 1e3;
+var MAX_CACHE_ENTRIES = 50;
 var levenshteinCache = /* @__PURE__ */ new Map();
 function getCachedLevenshtein(str1, str2) {
   const key = str1 < str2 ? `${str1}|${str2}` : `${str2}|${str1}`;
@@ -99,6 +100,8 @@ function getSkillMetadataCache(projectRoot) {
   const cached = skillMetadataCache.get(projectRoot);
   const now = Date.now();
   if (cached && now - cached.timestamp < SKILL_CACHE_TTL_MS) {
+    skillMetadataCache.delete(projectRoot);
+    skillMetadataCache.set(projectRoot, cached);
     return cached.skills;
   }
   const candidates = findSkillFiles(projectRoot);
@@ -122,6 +125,10 @@ function getSkillMetadataCache(projectRoot) {
       });
     } catch {
     }
+  }
+  if (skillMetadataCache.size >= MAX_CACHE_ENTRIES) {
+    const firstKey = skillMetadataCache.keys().next().value;
+    if (firstKey !== void 0) skillMetadataCache.delete(firstKey);
   }
   skillMetadataCache.set(projectRoot, { skills, timestamp: now });
   return skills;

@@ -5,15 +5,15 @@
  * When ultrawork is activated and todos remain incomplete,
  * this module ensures the mode persists until all work is done.
  */
-import { existsSync, readFileSync, unlinkSync } from 'fs';
-import { writeModeState, readModeState } from '../../lib/mode-state-io.js';
-import { resolveStatePath, resolveSessionStatePath } from '../../lib/worktree-paths.js';
+import { readFileSync, unlinkSync } from "fs";
+import { writeModeState, readModeState } from "../../lib/mode-state-io.js";
+import { resolveStatePath, resolveSessionStatePath, } from "../../lib/worktree-paths.js";
 const _DEFAULT_STATE = {
     active: false,
-    started_at: '',
-    original_prompt: '',
+    started_at: "",
+    original_prompt: "",
     reinforcement_count: 0,
-    last_checked_at: ''
+    last_checked_at: "",
 };
 /**
  * Get the state file path for Ultrawork (used only by deactivateUltrawork for ghost-legacy cleanup)
@@ -21,9 +21,9 @@ const _DEFAULT_STATE = {
 function getStateFilePath(directory, sessionId) {
     const baseDir = directory || process.cwd();
     if (sessionId) {
-        return resolveSessionStatePath('ultrawork', sessionId, baseDir);
+        return resolveSessionStatePath("ultrawork", sessionId, baseDir);
     }
-    return resolveStatePath('ultrawork', baseDir);
+    return resolveStatePath("ultrawork", baseDir);
 }
 /**
  * Read Ultrawork state from disk (local only)
@@ -32,9 +32,12 @@ function getStateFilePath(directory, sessionId) {
  * This prevents cross-session state leakage.
  */
 export function readUltraworkState(directory, sessionId) {
-    const state = readModeState('ultrawork', directory, sessionId);
+    const state = readModeState("ultrawork", directory, sessionId);
     // Validate session identity: state must belong to this session
-    if (state && sessionId && state.session_id && state.session_id !== sessionId) {
+    if (state &&
+        sessionId &&
+        state.session_id &&
+        state.session_id !== sessionId) {
         return null;
     }
     return state;
@@ -43,7 +46,7 @@ export function readUltraworkState(directory, sessionId) {
  * Write Ultrawork state to disk (local only)
  */
 export function writeUltraworkState(state, directory, sessionId) {
-    return writeModeState('ultrawork', state, directory, sessionId);
+    return writeModeState("ultrawork", state, directory, sessionId);
 }
 /**
  * Activate ultrawork mode
@@ -57,7 +60,7 @@ export function activateUltrawork(prompt, sessionId, directory, linkedToRalph) {
         project_path: directory || process.cwd(),
         reinforcement_count: 0,
         last_checked_at: new Date().toISOString(),
-        linked_to_ralph: linkedToRalph
+        linked_to_ralph: linkedToRalph,
     };
     return writeUltraworkState(state, directory, sessionId);
 }
@@ -73,11 +76,11 @@ export function deactivateUltrawork(directory, sessionId) {
     let success = true;
     // Delete session-scoped state file
     const stateFile = getStateFilePath(directory, sessionId);
-    if (existsSync(stateFile)) {
-        try {
-            unlinkSync(stateFile);
-        }
-        catch {
+    try {
+        unlinkSync(stateFile);
+    }
+    catch (error) {
+        if (error.code !== "ENOENT") {
             success = false;
         }
     }
@@ -85,19 +88,24 @@ export function deactivateUltrawork(directory, sessionId) {
     // if it belongs to this session or has no session_id (orphaned)
     if (sessionId) {
         const legacyFile = getStateFilePath(directory); // no sessionId = legacy path
-        if (existsSync(legacyFile)) {
-            try {
-                const content = readFileSync(legacyFile, 'utf-8');
-                const legacyState = JSON.parse(content);
-                // Only remove if it belongs to this session or is unowned (no session_id)
-                if (!legacyState.session_id || legacyState.session_id === sessionId) {
+        try {
+            const content = readFileSync(legacyFile, "utf-8");
+            const legacyState = JSON.parse(content);
+            // Only remove if it belongs to this session or is unowned (no session_id)
+            if (!legacyState.session_id || legacyState.session_id === sessionId) {
+                try {
                     unlinkSync(legacyFile);
                 }
-                // Do NOT delete another session's legacy data
+                catch (error) {
+                    if (error.code !== "ENOENT") {
+                        throw error;
+                    }
+                }
             }
-            catch {
-                // If we can't read/parse, leave it alone
-            }
+            // Do NOT delete another session's legacy data
+        }
+        catch {
+            // If we can't read/parse, leave it alone
         }
     }
     return success;
@@ -169,7 +177,7 @@ export function createUltraworkStateHook(directory) {
         deactivate: (sessionId) => deactivateUltrawork(directory, sessionId),
         getState: (sessionId) => readUltraworkState(directory, sessionId),
         shouldReinforce: (sessionId) => shouldReinforceUltrawork(sessionId, directory),
-        incrementReinforcement: (sessionId) => incrementReinforcement(directory, sessionId)
+        incrementReinforcement: (sessionId) => incrementReinforcement(directory, sessionId),
     };
 }
 //# sourceMappingURL=index.js.map

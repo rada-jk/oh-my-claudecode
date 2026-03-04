@@ -5,10 +5,10 @@
  *
  * Ported from oh-my-opencode's boulder-state.
  */
-import { existsSync, readFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
-import { dirname, join, basename } from 'path';
-import { BOULDER_DIR, BOULDER_FILE, PLANNER_PLANS_DIR, PLAN_EXTENSION } from './constants.js';
-import { atomicWriteSync } from '../../lib/atomic-write.js';
+import { readFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from "fs";
+import { dirname, join, basename } from "path";
+import { BOULDER_DIR, BOULDER_FILE, PLANNER_PLANS_DIR, PLAN_EXTENSION, } from "./constants.js";
+import { atomicWriteSync } from "../../lib/atomic-write.js";
 /**
  * Get the full path to the boulder state file
  */
@@ -20,14 +20,14 @@ export function getBoulderFilePath(directory) {
  */
 export function readBoulderState(directory) {
     const filePath = getBoulderFilePath(directory);
-    if (!existsSync(filePath)) {
-        return null;
-    }
     try {
-        const content = readFileSync(filePath, 'utf-8');
+        const content = readFileSync(filePath, "utf-8");
         return JSON.parse(content);
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return null;
+        }
         return null;
     }
 }
@@ -38,9 +38,7 @@ export function writeBoulderState(directory, state) {
     const filePath = getBoulderFilePath(directory);
     try {
         const dir = dirname(filePath);
-        if (!existsSync(dir)) {
-            mkdirSync(dir, { recursive: true });
-        }
+        mkdirSync(dir, { recursive: true });
         atomicWriteSync(filePath, JSON.stringify(state, null, 2));
         return true;
     }
@@ -73,7 +71,7 @@ export function clearBoulderState(directory) {
         return true;
     }
     catch (error) {
-        if (error.code === 'ENOENT') {
+        if (error.code === "ENOENT") {
             return true; // Already gone — success
         }
         return false;
@@ -85,9 +83,6 @@ export function clearBoulderState(directory) {
  */
 export function findPlannerPlans(directory) {
     const plansDir = join(directory, PLANNER_PLANS_DIR);
-    if (!existsSync(plansDir)) {
-        return [];
-    }
     try {
         const files = readdirSync(plansDir);
         return files
@@ -100,7 +95,10 @@ export function findPlannerPlans(directory) {
             return bStat.mtimeMs - aStat.mtimeMs;
         });
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return [];
+        }
         return [];
     }
 }
@@ -108,11 +106,8 @@ export function findPlannerPlans(directory) {
  * Parse a plan file and count checkbox progress.
  */
 export function getPlanProgress(planPath) {
-    if (!existsSync(planPath)) {
-        return { total: 0, completed: 0, isComplete: true };
-    }
     try {
-        const content = readFileSync(planPath, 'utf-8');
+        const content = readFileSync(planPath, "utf-8");
         // Match markdown checkboxes: - [ ] or - [x] or - [X]
         const uncheckedMatches = content.match(/^[-*]\s*\[\s*\]/gm) || [];
         const checkedMatches = content.match(/^[-*]\s*\[[xX]\]/gm) || [];
@@ -124,7 +119,10 @@ export function getPlanProgress(planPath) {
             isComplete: total === 0 || completed === total,
         };
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return { total: 0, completed: 0, isComplete: true };
+        }
         return { total: 0, completed: 0, isComplete: true };
     }
 }

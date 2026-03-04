@@ -4,7 +4,7 @@ import * as readline from 'readline';
 import { triggerStopCallbacks } from './callbacks.js';
 import { notify } from '../../notifications/index.js';
 import { cleanupBridgeSessions } from '../../tools/python-repl/bridge-manager.js';
-import { resolveToWorktreeRoot, getOmcRoot } from '../../lib/worktree-paths.js';
+import { resolveToWorktreeRoot, getOmcRoot, validateSessionId, isValidTranscriptPath } from '../../lib/worktree-paths.js';
 import { SESSION_END_MODE_STATE_FILES, SESSION_METRICS_MODE_FILES } from '../../lib/mode-names.js';
 /**
  * Read agent tracking to get spawn/completion counts
@@ -203,7 +203,8 @@ const PYTHON_REPL_TOOL_NAMES = new Set(['python_repl', 'mcp__t__python_repl']);
  * These sessions are terminated on SessionEnd to prevent bridge leaks.
  */
 export async function extractPythonReplSessionIdsFromTranscript(transcriptPath) {
-    if (!transcriptPath || !fs.existsSync(transcriptPath)) {
+    // Security: validate transcript path is within allowed directories
+    if (!transcriptPath || !isValidTranscriptPath(transcriptPath) || !fs.existsSync(transcriptPath)) {
         return [];
     }
     const sessionIds = new Set();
@@ -314,6 +315,14 @@ export function exportSessionSummary(directory, metrics) {
     // Create sessions directory if it doesn't exist
     if (!fs.existsSync(sessionsDir)) {
         fs.mkdirSync(sessionsDir, { recursive: true });
+    }
+    // Validate session_id to prevent path traversal
+    try {
+        validateSessionId(metrics.session_id);
+    }
+    catch {
+        // Invalid session_id - skip export to prevent path traversal
+        return;
     }
     // Write session summary
     const sessionFile = path.join(sessionsDir, `${metrics.session_id}.json`);

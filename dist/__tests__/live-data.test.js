@@ -20,7 +20,12 @@ beforeEach(() => {
     vi.clearAllMocks();
     clearCache();
     resetSecurityPolicy();
-    mockedExistsSync.mockReturnValue(false);
+    // Mock a permissive security policy that allows all test commands
+    mockedExistsSync.mockReturnValue(true);
+    mockedReadFileSync.mockReturnValue(JSON.stringify({
+        allowed_commands: ['echo', 'cmd1', 'cmd2', 'git', 'docker', 'node', 'npm', 'cat', 'ls', 'pwd', 'bad-cmd', 'slow-cmd', 'big-cmd', 'empty-cmd', 'multiline', 'any-command'],
+        allowed_patterns: ['.*']
+    }));
 });
 // ─── Basic Functionality ─────────────────────────────────────────────────────
 describe('isLiveDataLine', () => {
@@ -248,12 +253,13 @@ describe('resolveLiveData - security', () => {
         expect(result).toContain('files\n</live-data>');
         expect(result).not.toContain('error');
     });
-    it('works without a policy file (everything allowed)', () => {
+    it('blocks commands when no policy file exists (secure by default)', () => {
         mockedExistsSync.mockReturnValue(false);
-        mockedExecSync.mockReturnValue('ok\n');
+        resetSecurityPolicy(); // Clear cached policy so new one is loaded
         const result = resolveLiveData('!any-command');
-        expect(result).toContain('ok\n</live-data>');
-        expect(result).not.toContain('error');
+        expect(result).toContain('error="true"');
+        expect(result).toContain('blocked: no allowlist configured');
+        expect(mockedExecSync).not.toHaveBeenCalled();
     });
 });
 // ─── Output Parsing ──────────────────────────────────────────────────────────

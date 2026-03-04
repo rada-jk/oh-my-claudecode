@@ -15,7 +15,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { atomicWriteJsonSync } from "../../lib/atomic-write.js";
-import { OmcPaths, getWorktreeRoot, validateWorkingDirectory } from "../../lib/worktree-paths.js";
+import { OmcPaths, getWorktreeRoot, validateWorkingDirectory, } from "../../lib/worktree-paths.js";
 import { StateLocation, DEFAULT_STATE_CONFIG, } from "./types.js";
 // Standard state directories
 /** Get the absolute path to the local state directory, resolved from the git worktree root. */
@@ -31,6 +31,7 @@ const GLOBAL_STATE_DIR = path.join(os.homedir(), ".omc", "state");
 const MAX_STATE_AGE_MS = 4 * 60 * 60 * 1000;
 // Read cache: avoids re-reading unchanged state files within TTL
 const STATE_CACHE_TTL_MS = 5_000; // 5 seconds
+const MAX_CACHE_SIZE = 200;
 const stateCache = new Map();
 /**
  * Clear the state read cache.
@@ -96,7 +97,9 @@ export function readState(name, location = StateLocation.LOCAL, options) {
             const mtimeBefore = statBefore.mtimeMs;
             // Check cache: entry exists, mtime matches, TTL not expired
             const cached = stateCache.get(standardPath);
-            if (cached && cached.mtime === mtimeBefore && (Date.now() - cached.cachedAt) < STATE_CACHE_TTL_MS) {
+            if (cached &&
+                cached.mtime === mtimeBefore &&
+                Date.now() - cached.cachedAt < STATE_CACHE_TTL_MS) {
                 return {
                     exists: true,
                     data: structuredClone(cached.data),
@@ -113,7 +116,16 @@ export function readState(name, location = StateLocation.LOCAL, options) {
             try {
                 const statAfter = fs.statSync(standardPath);
                 if (statAfter.mtimeMs === mtimeBefore) {
-                    stateCache.set(standardPath, { data: structuredClone(data), mtime: mtimeBefore, cachedAt: Date.now() });
+                    if (stateCache.size >= MAX_CACHE_SIZE) {
+                        const firstKey = stateCache.keys().next().value;
+                        if (firstKey !== undefined)
+                            stateCache.delete(firstKey);
+                    }
+                    stateCache.set(standardPath, {
+                        data: structuredClone(data),
+                        mtime: mtimeBefore,
+                        cachedAt: Date.now(),
+                    });
                 }
             }
             catch {
@@ -491,7 +503,9 @@ export function cleanupStaleStates(directory, maxAgeMs = MAX_STATE_AGE_MS) {
                             atomicWriteJsonSync(filePath, data);
                             cleaned++;
                         }
-                        catch { /* best-effort */ }
+                        catch {
+                            /* best-effort */
+                        }
                     }
                 }
                 catch {
@@ -509,7 +523,9 @@ export function cleanupStaleStates(directory, maxAgeMs = MAX_STATE_AGE_MS) {
     const sessionsDir = path.join(stateDir, "sessions");
     if (fs.existsSync(sessionsDir)) {
         try {
-            const sessionEntries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+            const sessionEntries = fs.readdirSync(sessionsDir, {
+                withFileTypes: true,
+            });
             for (const entry of sessionEntries) {
                 if (entry.isDirectory()) {
                     scanDir(path.join(sessionsDir, entry.name));
@@ -559,7 +575,9 @@ function withFileLock(filePath, fn) {
                     try {
                         fs.unlinkSync(lockPath);
                     }
-                    catch { /* race OK */ }
+                    catch {
+                        /* race OK */
+                    }
                     continue;
                 }
             }
@@ -572,7 +590,9 @@ function withFileLock(filePath, fn) {
             }
             // Brief busy-wait before retry
             const waitEnd = Date.now() + LOCK_POLL_MS;
-            while (Date.now() < waitEnd) { /* spin */ }
+            while (Date.now() < waitEnd) {
+                /* spin */
+            }
         }
     }
     try {
@@ -582,7 +602,9 @@ function withFileLock(filePath, fn) {
         try {
             fs.unlinkSync(lockPath);
         }
-        catch { /* best-effort */ }
+        catch {
+            /* best-effort */
+        }
     }
 }
 /**

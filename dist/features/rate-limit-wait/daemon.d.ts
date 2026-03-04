@@ -49,4 +49,9 @@ export declare function detectBlockedPanes(config?: DaemonConfig): Promise<Daemo
  */
 export declare function formatDaemonState(state: DaemonState): string;
 export { pollLoop };
+/**
+ * Poll loop entry point for daemon subprocess.
+ * Reads config from file to avoid config injection via command line.
+ */
+export declare function pollLoopWithConfigFile(configPath: string): Promise<void>;
 //# sourceMappingURL=daemon.d.ts.map

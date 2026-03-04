@@ -4,21 +4,21 @@
  * Automatically injects relevant learned skills into context
  * based on message content triggers.
  */
-import type { LearnedSkill } from './types.js';
-export * from './types.js';
-export * from './constants.js';
-export * from './finder.js';
-export * from './parser.js';
-export * from './loader.js';
-export * from './validator.js';
-export * from './writer.js';
-export * from './detector.js';
-export * from './detection-hook.js';
-export * from './promotion.js';
-export * from './config.js';
-export * from './matcher.js';
-export * from './auto-invoke.js';
-export { type PatternDetection, type AutoLearnerState, initAutoLearner, calculateSkillWorthiness, extractTriggers, getSuggestedSkills, patternToSkillMetadata, recordPattern as recordSkillPattern, } from './auto-learner.js';
+import type { LearnedSkill } from "./types.js";
+export * from "./types.js";
+export * from "./constants.js";
+export * from "./finder.js";
+export * from "./parser.js";
+export * from "./loader.js";
+export * from "./validator.js";
+export * from "./writer.js";
+export * from "./detector.js";
+export * from "./detection-hook.js";
+export * from "./promotion.js";
+export * from "./config.js";
+export * from "./matcher.js";
+export * from "./auto-invoke.js";
+export { type PatternDetection, type AutoLearnerState, initAutoLearner, calculateSkillWorthiness, extractTriggers, getSuggestedSkills, patternToSkillMetadata, recordPattern as recordSkillPattern, } from "./auto-learner.js";
 /**
  * Check if feature is enabled.
  */

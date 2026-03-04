@@ -8,11 +8,11 @@
  *
  * All modes store state in `.omc/state/` subdirectory for consistency.
  */
-import { existsSync, readFileSync, unlinkSync, mkdirSync, readdirSync, statSync, rmdirSync, rmSync } from 'fs';
-import { atomicWriteJsonSync } from '../../lib/atomic-write.js';
-import { join, dirname } from 'path';
-import { listSessionIds, resolveSessionStatePath, getSessionStateDir, getOmcRoot } from '../../lib/worktree-paths.js';
-import { MODE_STATE_FILE_MAP, MODE_NAMES } from '../../lib/mode-names.js';
+import { existsSync, readFileSync, unlinkSync, mkdirSync, readdirSync, statSync, rmdirSync, rmSync, } from "fs";
+import { atomicWriteJsonSync } from "../../lib/atomic-write.js";
+import { join, dirname } from "path";
+import { listSessionIds, resolveSessionStatePath, getSessionStateDir, getOmcRoot, } from "../../lib/worktree-paths.js";
+import { MODE_STATE_FILE_MAP, MODE_NAMES } from "../../lib/mode-names.js";
 /**
  * Mode configuration registry
  *
@@ -21,34 +21,34 @@ import { MODE_STATE_FILE_MAP, MODE_NAMES } from '../../lib/mode-names.js';
  */
 const MODE_CONFIGS = {
     [MODE_NAMES.AUTOPILOT]: {
-        name: 'Autopilot',
+        name: "Autopilot",
         stateFile: MODE_STATE_FILE_MAP[MODE_NAMES.AUTOPILOT],
-        activeProperty: 'active'
+        activeProperty: "active",
     },
     [MODE_NAMES.TEAM]: {
-        name: 'Team',
+        name: "Team",
         stateFile: MODE_STATE_FILE_MAP[MODE_NAMES.TEAM],
-        activeProperty: 'active',
-        hasGlobalState: false
+        activeProperty: "active",
+        hasGlobalState: false,
     },
     [MODE_NAMES.RALPH]: {
-        name: 'Ralph',
+        name: "Ralph",
         stateFile: MODE_STATE_FILE_MAP[MODE_NAMES.RALPH],
-        markerFile: 'ralph-verification.json',
-        activeProperty: 'active',
-        hasGlobalState: false
+        markerFile: "ralph-verification.json",
+        activeProperty: "active",
+        hasGlobalState: false,
     },
     [MODE_NAMES.ULTRAWORK]: {
-        name: 'Ultrawork',
+        name: "Ultrawork",
         stateFile: MODE_STATE_FILE_MAP[MODE_NAMES.ULTRAWORK],
-        activeProperty: 'active',
-        hasGlobalState: false
+        activeProperty: "active",
+        hasGlobalState: false,
     },
     [MODE_NAMES.ULTRAQA]: {
-        name: 'UltraQA',
+        name: "UltraQA",
         stateFile: MODE_STATE_FILE_MAP[MODE_NAMES.ULTRAQA],
-        activeProperty: 'active'
-    }
+        activeProperty: "active",
+    },
 };
 // Export for use in other modules
 export { MODE_CONFIGS };
@@ -60,16 +60,14 @@ const EXCLUSIVE_MODES = [MODE_NAMES.AUTOPILOT];
  * Get the state directory path
  */
 export function getStateDir(cwd) {
-    return join(getOmcRoot(cwd), 'state');
+    return join(getOmcRoot(cwd), "state");
 }
 /**
  * Ensure the state directory exists
  */
 export function ensureStateDir(cwd) {
     const stateDir = getStateDir(cwd);
-    if (!existsSync(stateDir)) {
-        mkdirSync(stateDir, { recursive: true });
-    }
+    mkdirSync(stateDir, { recursive: true });
 }
 /**
  * Get the full path to a mode's state file
@@ -109,11 +107,8 @@ function isJsonModeActive(cwd, mode, sessionId) {
     // could cause another session to see mode as active.
     if (sessionId) {
         const sessionStateFile = resolveSessionStatePath(mode, sessionId, cwd);
-        if (!existsSync(sessionStateFile)) {
-            return false;
-        }
         try {
-            const content = readFileSync(sessionStateFile, 'utf-8');
+            const content = readFileSync(sessionStateFile, "utf-8");
             const state = JSON.parse(content);
             // Validate session identity: state must belong to this session
             if (state.session_id && state.session_id !== sessionId) {
@@ -124,17 +119,17 @@ function isJsonModeActive(cwd, mode, sessionId) {
             }
             return true;
         }
-        catch {
+        catch (error) {
+            if (error.code === "ENOENT") {
+                return false;
+            }
             return false;
         }
     }
     // No sessionId: check legacy shared path (backward compat)
     const stateFile = getStateFilePath(cwd, mode);
-    if (!existsSync(stateFile)) {
-        return false;
-    }
     try {
-        const content = readFileSync(stateFile, 'utf-8');
+        const content = readFileSync(stateFile, "utf-8");
         const state = JSON.parse(content);
         if (config.activeProperty) {
             return state[config.activeProperty] === true;
@@ -142,7 +137,10 @@ function isJsonModeActive(cwd, mode, sessionId) {
         // Default: file existence means active
         return true;
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return false;
+        }
         return false;
     }
 }
@@ -211,12 +209,13 @@ export function canStartMode(mode, cwd) {
     // Check for mutually exclusive modes across all sessions
     if (EXCLUSIVE_MODES.includes(mode)) {
         for (const exclusiveMode of EXCLUSIVE_MODES) {
-            if (exclusiveMode !== mode && isModeActiveInAnySession(exclusiveMode, cwd)) {
+            if (exclusiveMode !== mode &&
+                isModeActiveInAnySession(exclusiveMode, cwd)) {
                 const config = MODE_CONFIGS[exclusiveMode];
                 return {
                     allowed: false,
                     blockedBy: exclusiveMode,
-                    message: `Cannot start ${MODE_CONFIGS[mode].name} while ${config.name} is active. Cancel ${config.name} first with /oh-my-claudecode:cancel.`
+                    message: `Cannot start ${MODE_CONFIGS[mode].name} while ${config.name} is active. Cancel ${config.name} first with /oh-my-claudecode:cancel.`,
                 };
             }
         }
@@ -231,10 +230,10 @@ export function canStartMode(mode, cwd) {
  * @returns Array of mode statuses
  */
 export function getAllModeStatuses(cwd, sessionId) {
-    return Object.keys(MODE_CONFIGS).map(mode => ({
+    return Object.keys(MODE_CONFIGS).map((mode) => ({
         mode,
         active: isModeActive(mode, cwd, sessionId),
-        stateFilePath: getStateFilePath(cwd, mode, sessionId)
+        stateFilePath: getStateFilePath(cwd, mode, sessionId),
     }));
 }
 /**
@@ -260,20 +259,20 @@ export function clearModeState(mode, cwd, sessionId) {
             unlinkSync(sessionStateFile);
         }
         catch (err) {
-            if (err.code !== 'ENOENT') {
+            if (err.code !== "ENOENT") {
                 success = false;
             }
         }
         // Clear session-scoped marker artifacts (e.g., ralph-verification-state.json).
         // Keep legacy/shared marker files untouched for isolation.
         if (config.markerFile) {
-            const markerStateName = config.markerFile.replace(/\.json$/i, '');
+            const markerStateName = config.markerFile.replace(/\.json$/i, "");
             const sessionMarkerFile = resolveSessionStatePath(markerStateName, sessionId, cwd);
             try {
                 unlinkSync(sessionMarkerFile);
             }
             catch (err) {
-                if (err.code !== 'ENOENT') {
+                if (err.code !== "ENOENT") {
                     success = false;
                 }
             }
@@ -282,14 +281,14 @@ export function clearModeState(mode, cwd, sessionId) {
         // Keep isolation by deleting only unowned markers or markers owned by this session.
         if (markerFile) {
             try {
-                const markerRaw = JSON.parse(readFileSync(markerFile, 'utf-8'));
+                const markerRaw = JSON.parse(readFileSync(markerFile, "utf-8"));
                 const markerSessionId = markerRaw.session_id ?? markerRaw.sessionId;
                 if (!markerSessionId || markerSessionId === sessionId) {
                     try {
                         unlinkSync(markerFile);
                     }
                     catch (err) {
-                        if (err.code !== 'ENOENT') {
+                        if (err.code !== "ENOENT") {
                             success = false;
                         }
                     }
@@ -301,7 +300,7 @@ export function clearModeState(mode, cwd, sessionId) {
                     unlinkSync(markerFile);
                 }
                 catch (err) {
-                    if (err.code !== 'ENOENT') {
+                    if (err.code !== "ENOENT") {
                         success = false;
                     }
                 }
@@ -315,7 +314,7 @@ export function clearModeState(mode, cwd, sessionId) {
             unlinkSync(stateFile);
         }
         catch (err) {
-            if (err.code !== 'ENOENT') {
+            if (err.code !== "ENOENT") {
                 success = false;
             }
         }
@@ -325,14 +324,14 @@ export function clearModeState(mode, cwd, sessionId) {
         if (isSessionScopedClear) {
             // Only delete if the marker is unowned or owned by this session.
             try {
-                const markerRaw = JSON.parse(readFileSync(markerFile, 'utf-8'));
+                const markerRaw = JSON.parse(readFileSync(markerFile, "utf-8"));
                 const markerSessionId = markerRaw.session_id ?? markerRaw.sessionId;
                 if (!markerSessionId || markerSessionId === sessionId) {
                     try {
                         unlinkSync(markerFile);
                     }
                     catch (err) {
-                        if (err.code !== 'ENOENT') {
+                        if (err.code !== "ENOENT") {
                             success = false;
                         }
                     }
@@ -344,7 +343,7 @@ export function clearModeState(mode, cwd, sessionId) {
                     unlinkSync(markerFile);
                 }
                 catch (err) {
-                    if (err.code !== 'ENOENT') {
+                    if (err.code !== "ENOENT") {
                         success = false;
                     }
                 }
@@ -355,7 +354,7 @@ export function clearModeState(mode, cwd, sessionId) {
                 unlinkSync(markerFile);
             }
             catch (err) {
-                if (err.code !== 'ENOENT') {
+                if (err.code !== "ENOENT") {
                     success = false;
                 }
             }
@@ -375,12 +374,12 @@ export function clearAllModeStates(cwd) {
         }
     }
     // Clear skill-active-state.json (issue #1033)
-    const skillStatePath = join(getStateDir(cwd), 'skill-active-state.json');
+    const skillStatePath = join(getStateDir(cwd), "skill-active-state.json");
     try {
         unlinkSync(skillStatePath);
     }
     catch (err) {
-        if (err.code !== 'ENOENT') {
+        if (err.code !== "ENOENT") {
             success = false;
         }
     }
@@ -427,7 +426,7 @@ export function isModeActiveInAnySession(mode, cwd) {
  */
 export function getActiveSessionsForMode(mode, cwd) {
     const sessionIds = listSessionIds(cwd);
-    return sessionIds.filter(sid => isJsonModeActive(cwd, mode, sid));
+    return sessionIds.filter((sid) => isJsonModeActive(cwd, mode, sid));
 }
 /**
  * Clear stale session directories
@@ -439,10 +438,6 @@ export function getActiveSessionsForMode(mode, cwd) {
  * @returns Array of removed session IDs
  */
 export function clearStaleSessionDirs(cwd, maxAgeMs = 24 * 60 * 60 * 1000) {
-    const sessionsDir = join(getOmcRoot(cwd), 'state', 'sessions');
-    if (!existsSync(sessionsDir)) {
-        return [];
-    }
     const removed = [];
     const sessionIds = listSessionIds(cwd);
     for (const sid of sessionIds) {
@@ -494,13 +489,11 @@ export function createModeMarker(mode, cwd, metadata) {
     try {
         // Ensure directory exists
         const dir = dirname(markerPath);
-        if (!existsSync(dir)) {
-            mkdirSync(dir, { recursive: true });
-        }
+        mkdirSync(dir, { recursive: true });
         atomicWriteJsonSync(markerPath, {
             mode,
             startedAt: new Date().toISOString(),
-            ...metadata
+            ...metadata,
         });
         return true;
     }
@@ -521,12 +514,13 @@ export function removeModeMarker(mode, cwd) {
         return true; // No marker to remove
     }
     try {
-        if (existsSync(markerPath)) {
-            unlinkSync(markerPath);
-        }
+        unlinkSync(markerPath);
         return true;
     }
     catch (error) {
+        if (error.code === "ENOENT") {
+            return true;
+        }
         console.error(`Failed to remove marker file for ${mode}:`, error);
         return false;
     }
@@ -539,14 +533,17 @@ export function removeModeMarker(mode, cwd) {
  */
 export function readModeMarker(mode, cwd) {
     const markerPath = getMarkerFilePath(cwd, mode);
-    if (!markerPath || !existsSync(markerPath)) {
+    if (!markerPath) {
         return null;
     }
     try {
-        const content = readFileSync(markerPath, 'utf-8');
+        const content = readFileSync(markerPath, "utf-8");
         return JSON.parse(content);
     }
-    catch {
+    catch (error) {
+        if (error.code === "ENOENT") {
+            return null;
+        }
         return null;
     }
 }
@@ -563,12 +560,13 @@ export function forceRemoveMarker(mode, cwd) {
         return true; // No marker to remove
     }
     try {
-        if (existsSync(markerPath)) {
-            unlinkSync(markerPath);
-        }
+        unlinkSync(markerPath);
         return true;
     }
     catch (error) {
+        if (error.code === "ENOENT") {
+            return true;
+        }
         console.error(`Failed to force remove marker file for ${mode}:`, error);
         return false;
     }
