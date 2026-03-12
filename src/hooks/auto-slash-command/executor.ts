@@ -19,6 +19,7 @@ import type {
 import { resolveLiveData } from './live-data.js';
 import { parseFrontmatter, parseFrontmatterAliases, stripOptionalQuotes } from '../../utils/frontmatter.js';
 import { parseSkillPipelineMetadata, renderSkillPipelineGuidance } from '../../utils/skill-pipeline.js';
+import { renderSkillRuntimeGuidance } from '../../features/builtin-skills/runtime-guidance.js';
 
 /** Claude config directory */
 const CLAUDE_CONFIG_DIR = getClaudeConfigDir();
@@ -254,11 +255,14 @@ function formatCommandTemplate(cmd: CommandInfo, args: string): string {
   // Resolve arguments in content, then execute any live-data commands
   const resolvedContent = resolveArguments(cmd.content || '', args);
   const injectedContent = resolveLiveData(resolvedContent);
+  const runtimeGuidance = cmd.scope === 'skill'
+    ? renderSkillRuntimeGuidance(cmd.metadata.name)
+    : '';
   const pipelineGuidance = cmd.scope === 'skill'
     ? renderSkillPipelineGuidance(cmd.metadata.name, cmd.metadata.pipeline)
     : '';
   sections.push(
-    [injectedContent.trim(), pipelineGuidance]
+    [injectedContent.trim(), runtimeGuidance, pipelineGuidance]
       .filter((section) => section.trim().length > 0)
       .join('\n\n')
   );

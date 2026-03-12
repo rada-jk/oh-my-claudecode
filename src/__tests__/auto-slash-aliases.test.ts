@@ -1,4 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const availability = vi.hoisted(() => ({
+  claude: true,
+  codex: false,
+  gemini: false,
+}));
+
+vi.mock('../team/model-contract.js', () => ({
+  isCliAvailable: (agentType: 'claude' | 'codex' | 'gemini') => availability[agentType],
+}));
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -17,6 +27,10 @@ describe('auto-slash command skill aliases', () => {
   }
 
   beforeEach(() => {
+    availability.claude = true;
+    availability.codex = false;
+    availability.gemini = false;
+
     tempRoot = mkdtempSync(join(tmpdir(), 'omc-auto-slash-aliases-'));
     tempConfigDir = join(tempRoot, 'claude-config');
     tempProjectDir = join(tempRoot, 'project');
@@ -116,6 +130,33 @@ Project psm body`
     expect(result.success).toBe(true);
     expect(result.replacementText).toContain('Deprecated Alias');
     expect(result.replacementText).toContain('/project-session-manager');
+  });
+
+  it('renders provider-aware execution guidance for slash-loaded deep-interview skills when Codex is available', async () => {
+    availability.codex = true;
+
+    mkdirSync(join(tempConfigDir, 'skills', 'deep-interview'), { recursive: true });
+    writeFileSync(
+      join(tempConfigDir, 'skills', 'deep-interview', 'SKILL.md'),
+      `---
+name: deep-interview
+description: Deep interview
+---
+
+Deep interview body`
+    );
+
+    const { executeSlashCommand } = await loadExecutor();
+    const result = executeSlashCommand({
+      command: 'deep-interview',
+      args: 'improve onboarding',
+      raw: '/deep-interview improve onboarding',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.replacementText).toContain('## Provider-Aware Execution Recommendations');
+    expect(result.replacementText).toContain('/ralplan --architect codex');
+    expect(result.replacementText).toContain('/ralph --critic codex');
   });
 
   it('renders skill pipeline guidance for slash-loaded skills with handoff metadata', async () => {
