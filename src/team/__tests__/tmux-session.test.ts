@@ -9,7 +9,6 @@ import {
   shouldAttemptAdaptiveRetry,
   getDefaultShell,
   buildWorkerStartCommand,
-  isUnixLikeOnWindows,
 } from '../tmux-session.js';
 
 afterEach(() => {
@@ -71,6 +70,18 @@ describe('getDefaultShell', () => {
     expect(getDefaultShell()).toBe('/bin/zsh');
   });
 
+  it('falls back to /bin/sh on non-win32 when SHELL is unsupported', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    vi.stubEnv('SHELL', '/bin/tcsh');
+    expect(getDefaultShell()).toBe('/bin/sh');
+  });
+
+  it('falls back to /bin/sh on non-win32 when SHELL is malformed', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    vi.stubEnv('SHELL', '   ');
+    expect(getDefaultShell()).toBe('/bin/sh');
+  });
+
   it('uses SHELL instead of COMSPEC on win32 when MSYSTEM is set (MSYS2)', () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
     vi.stubEnv('MSYSTEM', 'MINGW64');
@@ -85,6 +96,14 @@ describe('getDefaultShell', () => {
     vi.stubEnv('SHELL', '/usr/bin/bash');
     vi.stubEnv('COMSPEC', 'C:\\Windows\\System32\\cmd.exe');
     expect(getDefaultShell()).toBe('/usr/bin/bash');
+  });
+
+  it('falls back to /bin/sh on win32 MSYS when SHELL is unsupported', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    vi.stubEnv('MSYSTEM', 'MINGW64');
+    vi.stubEnv('SHELL', '/usr/bin/tcsh');
+    vi.stubEnv('COMSPEC', 'C:\\Windows\\System32\\cmd.exe');
+    expect(getDefaultShell()).toBe('/bin/sh');
   });
 });
 
@@ -160,6 +179,42 @@ describe('buildWorkerStartCommand', () => {
     expect(cmd).toContain("env A='1' /usr/bin/bash -c");
     expect(cmd).not.toContain('cmd.exe');
     expect(cmd).not.toContain('/d /s /c');
+  });
+
+  it('builds a POSIX command with /bin/sh fallback when SHELL is unsupported', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    vi.stubEnv('SHELL', '/bin/tcsh');
+    vi.stubEnv('HOME', '/home/tester');
+
+    const cmd = buildWorkerStartCommand({
+      teamName: 't',
+      workerName: 'w',
+      envVars: { A: '1' },
+      launchCmd: 'node app.js',
+      cwd: '/tmp'
+    });
+
+    expect(cmd).toContain("env A='1' /bin/sh -c");
+    expect(cmd).toContain('[ -f "/home/tester/.shrc" ] && source "/home/tester/.shrc";');
+  });
+
+  it('builds a POSIX command with /bin/sh fallback on MSYS when SHELL is unsupported', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    vi.stubEnv('MSYSTEM', 'MINGW64');
+    vi.stubEnv('SHELL', '/usr/bin/tcsh');
+    vi.stubEnv('HOME', '/home/tester');
+
+    const cmd = buildWorkerStartCommand({
+      teamName: 't',
+      workerName: 'w',
+      envVars: { A: '1' },
+      launchCmd: 'node app.js',
+      cwd: '/c/repo'
+    });
+
+    expect(cmd).toContain("env A='1' /bin/sh -c");
+    expect(cmd).not.toContain('/usr/bin/tcsh');
+    expect(cmd).not.toContain('cmd.exe');
   });
 
   it('uses basename-style shell name extraction for windows-style shell path', () => {

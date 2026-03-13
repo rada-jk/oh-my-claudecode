@@ -66,11 +66,26 @@ export interface WorkerPaneConfig {
   cwd: string;
 }
 
+const SUPPORTED_POSIX_SHELLS = new Set(['sh', 'bash', 'zsh', 'fish']);
+
+function resolveSupportedPosixShell(rawShell: string | undefined): string | null {
+  if (typeof rawShell !== 'string') return null;
+  const candidate = rawShell.trim();
+  if (!candidate) return null;
+  const shellName = shellNameFromPath(candidate);
+  if (!SUPPORTED_POSIX_SHELLS.has(shellName)) return null;
+  return candidate;
+}
+
 export function getDefaultShell(): string {
   if (process.platform === 'win32' && !isUnixLikeOnWindows()) {
     return process.env.COMSPEC || 'cmd.exe';
   }
-  return process.env.SHELL || '/bin/bash';
+
+  const supportedShell = resolveSupportedPosixShell(process.env.SHELL);
+  if (supportedShell) return supportedShell;
+
+  return '/bin/sh';
 }
 
 function escapeForCmdSet(value: string): string {
