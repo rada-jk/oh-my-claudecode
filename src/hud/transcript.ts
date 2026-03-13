@@ -379,7 +379,7 @@ function processEntry(
     // Track tool_use for Task (agents) and TodoWrite
     if (block.type === "tool_use" && block.id && block.name) {
       result.toolCallCount++;
-      if (block.name === "Task" || block.name === "proxy_Task") {
+      if (block.name === "Task" || block.name === "proxy_Task" || block.name === "Agent") {
         result.agentCallCount++;
         const input = block.input as TaskInput | undefined;
         const agentEntry: ActiveAgent = {
@@ -411,7 +411,7 @@ function processEntry(
         }
 
         agentMap.set(block.id, agentEntry);
-      } else if (block.name === "TodoWrite") {
+      } else if (block.name === "TodoWrite" || block.name === "proxy_TodoWrite") {
         const input = block.input as TodoWriteInput | undefined;
         if (input?.todos && Array.isArray(input.todos)) {
           // Replace latest todos with new ones
