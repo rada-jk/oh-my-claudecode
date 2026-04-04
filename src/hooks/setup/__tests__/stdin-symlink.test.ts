@@ -142,6 +142,26 @@ describe('ensureStdinSymlink', () => {
     expect(existsSync(tmpDst)).toBe(false);
   });
 
+  it('heals dangling symlink that points to non-existent target', () => {
+    // Create the directory and a dangling symlink (symlink exists but target doesn't)
+    mkdirSync(hooksLibDir, { recursive: true });
+    const stdinDst = join(hooksLibDir, 'stdin.mjs');
+    const danglingTarget = join(tmpdir(), 'this-does-not-exist');
+    symlinkSync(danglingTarget, stdinDst);
+
+    // Verify it's a dangling symlink (existsSync false but lstatSync shows symlink)
+    expect(existsSync(stdinDst)).toBe(false);
+    expect(lstatSync(stdinDst).isSymbolicLink()).toBe(true);
+
+    // Run the healing function - should detect dangling and recreate
+    ensureStdinSymlink(pluginRoot);
+
+    // Should now be a valid symlink pointing to correct source
+    expect(existsSync(stdinDst)).toBe(true);
+    expect(lstatSync(stdinDst).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(stdinDst)).toBe(stdinSrcPath);
+  });
+
   it('removes dangling symlink and copies when symlink creation fails', () => {
     mkdirSync(hooksLibDir, { recursive: true });
     const stdinDst = join(hooksLibDir, 'stdin.mjs');

@@ -212,7 +212,13 @@ export function ensureStdinSymlink(pluginRoot: string): void {
   try {
     const currentTarget = readlinkSync(stdinDst);
     if (currentTarget === stdinSrc) {
-      return; // Already pointing to correct source
+      // Verify the target actually exists (not a dangling symlink)
+      try {
+        statSync(currentTarget);
+        return; // Already pointing to correct source and target exists
+      } catch {
+        // Target doesn't exist - dangling symlink, proceed to fix
+      }
     }
   } catch {
     // stdinDst doesn't exist or isn't a symlink - proceed to fix
