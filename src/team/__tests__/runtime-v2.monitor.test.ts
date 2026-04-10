@@ -113,6 +113,33 @@ describe('monitorTeamV2 pane-based stall inference', () => {
     );
   });
 
+  it('surfaces missing blocker task ids in monitor recommendations', async () => {
+    cwd = await mkdtemp(join(tmpdir(), 'omc-runtime-v2-monitor-missing-blocker-'));
+    await writeConfigAndTask('pending');
+    const teamRoot = join(cwd, '.omc', 'state', 'team', 'demo-team');
+    await writeFile(join(teamRoot, 'tasks', '1.json'), JSON.stringify({
+      id: '1',
+      subject: 'Blocked task',
+      description: 'Depends on missing task 13',
+      status: 'pending',
+      owner: 'worker-1',
+      blocked_by: ['13'],
+      depends_on: ['13'],
+      created_at: new Date().toISOString(),
+    }, null, 2), 'utf-8');
+
+    const { monitorTeamV2 } = await import('../runtime-v2.js');
+    const snapshot = await monitorTeamV2('demo-team', cwd);
+
+    expect(snapshot?.nonReportingWorkers).toContain('worker-1');
+    expect(snapshot?.recommendations).toContain(
+      'Investigate worker-1: task-1 is blocked by missing task ids [13]; pane is idle at prompt',
+    );
+    expect(snapshot?.recommendations).toContain(
+      'Investigate task-1: depends on missing task ids [13]',
+    );
+  });
+
   it('does not flag a worker when pane evidence shows active work despite missing reports', async () => {
     cwd = await mkdtemp(join(tmpdir(), 'omc-runtime-v2-monitor-active-'));
     await writeConfigAndTask('in_progress');

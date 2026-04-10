@@ -68,6 +68,7 @@ import {
   resolveAutopilotPlanPath,
   resolveOpenQuestionsPlanPath,
 } from "../config/plan-output.js";
+import { formatAutopilotRuntimeInsight } from "./autopilot/runtime-insight.js";
 import { writeSkillActiveState } from "./skill-state/index.js";
 import {
   ULTRAWORK_MESSAGE,
@@ -2150,11 +2151,13 @@ async function processAutopilot(input: HookInput): Promise<HookOutput> {
   };
 
   const phasePrompt = getPhasePrompt(state.phase, context);
+  const runtimeInsight = formatAutopilotRuntimeInsight(directory, input.sessionId);
 
-  if (phasePrompt) {
+  if (phasePrompt || runtimeInsight) {
+    const detailParts = [runtimeInsight, phasePrompt].filter(Boolean);
     return {
       continue: true,
-      message: `[AUTOPILOT - Phase: ${state.phase.toUpperCase()}]\n\n${phasePrompt}`,
+      message: `[AUTOPILOT - Phase: ${state.phase.toUpperCase()}]\n\n${detailParts.join("\n\n")}`,
     };
   }
 

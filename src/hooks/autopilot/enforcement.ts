@@ -44,6 +44,7 @@ import {
   generateTransitionPrompt,
   formatPipelineHUD,
 } from "./pipeline.js";
+import { formatAutopilotRuntimeInsight } from "./runtime-insight.js";
 
 export interface AutopilotEnforcementResult {
   /** Whether to block the stop event */
@@ -326,6 +327,7 @@ function generateContinuationPrompt(
   // Read tool error before generating message
   const toolError = readLastToolError(directory);
   const errorGuidance = getToolErrorRetryGuidance(toolError);
+  const runtimeInsight = formatAutopilotRuntimeInsight(directory, sessionId);
 
   // Increment iteration
   state.iteration += 1;
@@ -340,6 +342,7 @@ function generateContinuationPrompt(
 
   const continuationPrompt = `<autopilot-continuation>
 ${errorGuidance ? errorGuidance + "\n" : ""}
+${runtimeInsight ? `${runtimeInsight}\n\n` : ""}
 [AUTOPILOT - PHASE: ${state.phase.toUpperCase()} | ITERATION ${state.iteration}/${state.max_iterations}]
 
 Your previous response did not signal phase completion. Continue working on the current phase.
@@ -483,6 +486,7 @@ ${stagePrompt}
 
   const toolError = readLastToolError(directory);
   const errorGuidance = getToolErrorRetryGuidance(toolError);
+  const runtimeInsight = formatAutopilotRuntimeInsight(directory, sessionId);
 
   // Increment overall iteration
   state.iteration += 1;
@@ -507,6 +511,7 @@ ${stagePrompt}
 
   const continuationPrompt = `<autopilot-pipeline-continuation>
 ${errorGuidance ? errorGuidance + "\n" : ""}
+${runtimeInsight ? `${runtimeInsight}\n\n` : ""}
 ${hudLine}
 
 [AUTOPILOT PIPELINE - STAGE: ${currentAdapter.name.toUpperCase()} | ITERATION ${state.iteration}/${state.max_iterations}]

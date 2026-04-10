@@ -406,7 +406,7 @@ async function main(): Promise<void> {
       } catch { /* best-effort panes file write */ }
 
       process.stderr.write(
-        `[runtime-cli/v2] phase=${snap.phase} pending=${snap.tasks.pending} in_progress=${snap.tasks.in_progress} completed=${snap.tasks.completed} failed=${snap.tasks.failed} dead=${snap.deadWorkers.length} totalMs=${snap.performance.total_ms}\n`,
+        `[runtime-cli/v2] phase=${snap.phase} pending=${snap.tasks.pending} blocked=${snap.tasks.blocked} in_progress=${snap.tasks.in_progress} completed=${snap.tasks.completed} failed=${snap.tasks.failed} dead=${snap.deadWorkers.length} totalMs=${snap.performance.total_ms}\n`,
       );
       const leaderGuidance = deriveTeamLeaderGuidance({
         tasks: {
@@ -426,6 +426,9 @@ async function main(): Promise<void> {
       process.stderr.write(
         `[runtime-cli/v2] leader_next_action=${leaderGuidance.nextAction} reason=${leaderGuidance.reason}\n`,
       );
+      for (const recommendation of snap.recommendations) {
+        process.stderr.write(`[runtime-cli/v2] recommendation=${recommendation}\n`);
+      }
       if (leaderGuidance.nextAction === 'keep-checking-status') {
         lastLeaderNudgeReason = '';
       }

@@ -215,6 +215,17 @@ function findOutstandingWorkerTask(
   return owned[0] ?? null;
 }
 
+function getTaskDependencyIds(task: TeamTask): string[] {
+  return task.depends_on ?? task.blocked_by ?? [];
+}
+
+function getMissingDependencyIds(
+  task: TeamTask,
+  taskById: Map<string, TeamTask>,
+): string[] {
+  return getTaskDependencyIds(task).filter((dependencyId) => !taskById.has(dependencyId));
+}
+
 // ---------------------------------------------------------------------------
 // StartTeam V2 — create state, spawn workers, write initial dispatch requests
 // ---------------------------------------------------------------------------
@@ -1022,9 +1033,14 @@ export async function monitorTeamV2(
     const statusFresh = isFreshTimestamp(status.updated_at);
     const heartbeatFresh = isFreshTimestamp(heartbeat?.last_turn_at);
     const hasWorkStartEvidence = expectedTaskId !== '' && hasWorkerStatusProgress(status, expectedTaskId);
+    const missingDependencyIds = outstandingTask
+      ? getMissingDependencyIds(outstandingTask, taskById)
+      : [];
 
     let stallReason: string | null = null;
-    if (paneSuggestsIdle && expectedTaskId !== '' && !hasWorkStartEvidence) {
+    if (paneSuggestsIdle && missingDependencyIds.length > 0) {
+      stallReason = 'missing_dependency';
+    } else if (paneSuggestsIdle && expectedTaskId !== '' && !hasWorkStartEvidence) {
       stallReason = 'no_work_start_evidence';
     } else if (paneSuggestsIdle && expectedTaskId !== '' && (!statusFresh || !heartbeatFresh)) {
       stallReason = 'stale_or_missing_worker_reports';
@@ -1034,7 +1050,11 @@ export async function monitorTeamV2(
 
     if (stallReason) {
       nonReportingWorkers.push(w.name);
-      if (stallReason === 'no_work_start_evidence') {
+      if (stallReason === 'missing_dependency') {
+        recommendations.push(
+          `Investigate ${w.name}: task-${outstandingTask?.id ?? expectedTaskId} is blocked by missing task ids [${missingDependencyIds.join(', ')}]; pane is idle at prompt`,
+        );
+      } else if (stallReason === 'no_work_start_evidence') {
         recommendations.push(`Investigate ${w.name}: assigned work but no work-start evidence; pane is idle at prompt`);
       } else if (stallReason === 'stale_or_missing_worker_reports') {
         recommendations.push(`Investigate ${w.name}: pane is idle while status/heartbeat are stale or missing`);
@@ -1055,6 +1075,17 @@ export async function monitorTeamV2(
   };
 
   const allTasksTerminal = taskCounts.pending === 0 && taskCounts.blocked === 0 && taskCounts.in_progress === 0;
+
+  for (const task of allTasks) {
+    const missingDependencyIds = getMissingDependencyIds(task, taskById);
+    if (missingDependencyIds.length === 0) {
+      continue;
+    }
+
+    recommendations.push(
+      `Investigate task-${task.id}: depends on missing task ids [${missingDependencyIds.join(', ')}]`,
+    );
+  }
 
   // Infer phase from task distribution
   const phase = inferPhase(allTasks.map((t) => ({
