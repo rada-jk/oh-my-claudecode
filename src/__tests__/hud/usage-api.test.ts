@@ -522,9 +522,9 @@ describe('getUsage routing', () => {
     const mockedExistsSync = vi.mocked(fs.existsSync);
     const mockedReadFileSync = vi.mocked(fs.readFileSync);
 
-    mockedExistsSync.mockImplementation((path) => String(path).endsWith('.usage-cache.json'));
+    mockedExistsSync.mockImplementation((path) => String(path).endsWith('.usage-cache-anthropic.json'));
     mockedReadFileSync.mockImplementation((path) => {
-      if (String(path).endsWith('.usage-cache.json')) {
+      if (String(path).endsWith('.usage-cache-anthropic.json')) {
         return JSON.stringify({
           timestamp: Date.now() - 60_000,
           source: 'anthropic',
@@ -564,7 +564,7 @@ describe('getUsage routing', () => {
 
     mockedExistsSync.mockImplementation((path) => {
       const file = String(path);
-      return file.endsWith('settings.json') || file.endsWith('.usage-cache.json');
+      return file.endsWith('settings.json') || file.endsWith('.usage-cache-anthropic.json');
     });
     mockedReadFileSync.mockImplementation((path) => {
       const file = String(path);
@@ -575,7 +575,7 @@ describe('getUsage routing', () => {
           },
         });
       }
-      if (file.endsWith('.usage-cache.json')) {
+      if (file.endsWith('.usage-cache-anthropic.json')) {
         return JSON.stringify({
           timestamp: Date.now() - 120_000,
           source: 'anthropic',
@@ -673,7 +673,7 @@ describe('getUsage routing', () => {
 
     mockedExistsSync.mockImplementation((path) => {
       const file = String(path);
-      return file.endsWith('settings.json') || file.endsWith('.usage-cache.json');
+      return file.endsWith('settings.json') || file.endsWith('.usage-cache-zai.json');
     });
     mockedReadFileSync.mockImplementation((path) => {
       const file = String(path);
@@ -684,7 +684,7 @@ describe('getUsage routing', () => {
           },
         });
       }
-      if (file.endsWith('.usage-cache.json')) {
+      if (file.endsWith('.usage-cache-zai.json')) {
         return JSON.stringify({
           timestamp: Date.now() - 300_000,
           rateLimitedUntil: Date.now() - 1,
@@ -731,7 +731,7 @@ describe('getUsage routing', () => {
 
     mockedExistsSync.mockImplementation((path) => {
       const file = String(path);
-      return file.endsWith('settings.json') || file.endsWith('.usage-cache.json');
+      return file.endsWith('settings.json') || file.endsWith('.usage-cache-zai.json');
     });
     mockedReadFileSync.mockImplementation((path) => {
       const file = String(path);
@@ -742,7 +742,7 @@ describe('getUsage routing', () => {
           },
         });
       }
-      if (file.endsWith('.usage-cache.json')) {
+      if (file.endsWith('.usage-cache-zai.json')) {
         return JSON.stringify({
           timestamp: Date.now() - 90_000,
           source: 'zai',

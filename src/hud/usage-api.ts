@@ -107,18 +107,56 @@ export function isZaiHost(urlString: string): boolean {
 }
 
 /**
- * Get the cache file path
+ * Get the legacy (pre-split) cache file path
  */
-function getCachePath(): string {
+function getLegacyCachePath(): string {
   return join(getClaudeConfigDir(), 'plugins', 'oh-my-claudecode', '.usage-cache.json');
 }
 
 /**
- * Read cached usage data
+ * Get the provider-specific cache file path
  */
-function readCache(): UsageCache | null {
+function getCachePath(source: 'anthropic' | 'zai'): string {
+  return join(getClaudeConfigDir(), 'plugins', 'oh-my-claudecode', `.usage-cache-${source}.json`);
+}
+
+/**
+ * Migrate legacy single-file cache to provider-specific file.
+ * One-shot: only runs when the provider-specific file does not yet exist
+ * and the legacy cache's source matches the current provider.
+ * Does NOT delete the legacy file (rolling update safety).
+ */
+function migrateLegacyCache(source: 'anthropic' | 'zai'): void {
   try {
-    const cachePath = getCachePath();
+    const legacyPath = getLegacyCachePath();
+    if (!existsSync(legacyPath)) return;
+
+    // One-shot guard: skip if new file already exists
+    if (existsSync(getCachePath(source))) return;
+
+    const content = readFileSync(legacyPath, 'utf-8');
+    const cache = JSON.parse(content) as UsageCache;
+
+    // Source mismatch guard: only migrate if legacy cache belongs to this provider
+    if (cache.source !== source) return;
+
+    const newPath = getCachePath(source);
+    const cacheDir = dirname(newPath);
+    if (!existsSync(cacheDir)) {
+      mkdirSync(cacheDir, { recursive: true });
+    }
+    writeFileSync(newPath, content);
+  } catch {
+    // Best-effort migration — failures are harmless
+  }
+}
+
+/**
+ * Read cached usage data for a specific provider
+ */
+function readCache(source: 'anthropic' | 'zai'): UsageCache | null {
+  try {
+    const cachePath = getCachePath(source);
     if (!existsSync(cachePath)) return null;
 
     const content = readFileSync(cachePath, 'utf-8');
@@ -164,11 +202,11 @@ interface WriteCacheOptions {
 }
 
 /**
- * Write usage data to cache
+ * Write usage data to cache (provider-specific file)
  */
 function writeCache(opts: WriteCacheOptions): void {
   try {
-    const cachePath = getCachePath();
+    const cachePath = getCachePath(opts.source!);
     const cacheDir = dirname(cachePath);
 
     if (!existsSync(cacheDir)) {
@@ -785,14 +823,17 @@ export async function getUsage(): Promise<UsageResult> {
   const currentSource: 'anthropic' | 'zai' = isZai && authToken ? 'zai' : 'anthropic';
   const pollIntervalMs = getUsagePollIntervalMs();
 
-  const initialCache = readCache();
+  // Migrate legacy single-file cache to provider-specific file (one-shot, best-effort)
+  migrateLegacyCache(currentSource);
+
+  const initialCache = readCache(currentSource);
   if (initialCache && isCacheValid(initialCache, pollIntervalMs) && initialCache.source === currentSource) {
     return getCachedUsageResult(initialCache);
   }
 
   try {
-    return await withFileLock(lockPathFor(getCachePath()), async () => {
-      const cache = readCache();
+    return await withFileLock(lockPathFor(getCachePath(currentSource)), async () => {
+      const cache = readCache(currentSource);
       if (cache && isCacheValid(cache, pollIntervalMs) && cache.source === currentSource) {
         return getCachedUsageResult(cache);
       }
@@ -800,11 +841,10 @@ export async function getUsage(): Promise<UsageResult> {
       // z.ai path (must precede OAuth check to avoid stale Anthropic credentials)
       if (isZai && authToken) {
         const result = await fetchUsageFromZai();
-        const cachedZai = cache?.source === 'zai' ? cache : null;
 
         if (result.rateLimited) {
-          const prevLastSuccess = cachedZai?.lastSuccessAt;
-          const rateLimitedCache = createRateLimitedCacheEntry('zai', cachedZai?.data || null, pollIntervalMs, cachedZai?.rateLimitedCount || 0, prevLastSuccess);
+          const prevLastSuccess = cache?.lastSuccessAt;
+          const rateLimitedCache = createRateLimitedCacheEntry('zai', cache?.data || null, pollIntervalMs, cache?.rateLimitedCount || 0, prevLastSuccess);
           writeCache({
             data: rateLimitedCache.data,
             error: rateLimitedCache.error,
@@ -825,13 +865,13 @@ export async function getUsage(): Promise<UsageResult> {
         }
 
         if (!result.data) {
-          const fallbackData = hasUsableStaleData(cachedZai) ? cachedZai.data : null;
+          const fallbackData = hasUsableStaleData(cache) ? cache.data : null;
           writeCache({
             data: fallbackData,
             error: true,
             source: 'zai',
             errorReason: 'network',
-            lastSuccessAt: cachedZai?.lastSuccessAt,
+            lastSuccessAt: cache?.lastSuccessAt,
           });
           if (fallbackData) {
             return { rateLimits: fallbackData, error: 'network', stale: true };
@@ -847,7 +887,6 @@ export async function getUsage(): Promise<UsageResult> {
       // Anthropic OAuth path (official Claude Code support)
       let creds = getCredentials();
       if (creds) {
-        const cachedAnthropic = cache?.source === 'anthropic' ? cache : null;
         if (!validateCredentials(creds)) {
           if (creds.refreshToken) {
             const refreshed = await refreshAccessToken(creds.refreshToken);
@@ -867,8 +906,8 @@ export async function getUsage(): Promise<UsageResult> {
         const result = await fetchUsageFromApi(creds.accessToken);
 
         if (result.rateLimited) {
-          const prevLastSuccess = cachedAnthropic?.lastSuccessAt;
-          const rateLimitedCache = createRateLimitedCacheEntry('anthropic', cachedAnthropic?.data || null, pollIntervalMs, cachedAnthropic?.rateLimitedCount || 0, prevLastSuccess);
+          const prevLastSuccess = cache?.lastSuccessAt;
+          const rateLimitedCache = createRateLimitedCacheEntry('anthropic', cache?.data || null, pollIntervalMs, cache?.rateLimitedCount || 0, prevLastSuccess);
           writeCache({
             data: rateLimitedCache.data,
             error: rateLimitedCache.error,
@@ -889,13 +928,13 @@ export async function getUsage(): Promise<UsageResult> {
         }
 
         if (!result.data) {
-          const fallbackData = hasUsableStaleData(cachedAnthropic) ? cachedAnthropic.data : null;
+          const fallbackData = hasUsableStaleData(cache) ? cache.data : null;
           writeCache({
             data: fallbackData,
             error: true,
             source: 'anthropic',
             errorReason: 'network',
-            lastSuccessAt: cachedAnthropic?.lastSuccessAt,
+            lastSuccessAt: cache?.lastSuccessAt,
           });
           if (fallbackData) {
             return { rateLimits: fallbackData, error: 'network', stale: true };
