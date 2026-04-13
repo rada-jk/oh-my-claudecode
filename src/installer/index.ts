@@ -424,6 +424,145 @@ export function isProjectScopedPlugin(): boolean {
 type HookEntry = { type: string; command: string };
 type HookGroup = { hooks: HookEntry[] };
 
+function configureInstallerSettings(
+  baseSettings: Record<string, unknown>,
+  context: {
+    allowPluginHookRefresh: boolean;
+    hudScriptPath: string | null;
+    log: (msg: string) => void;
+    options: InstallOptions;
+    pluginProvidesHookFiles: boolean;
+    result: InstallResult;
+    runningAsPlugin: boolean;
+  },
+): Record<string, unknown> {
+  let settings = { ...baseSettings };
+
+  {
+    const existingHooks = { ...((settings.hooks || {}) as Record<string, unknown>) };
+    let legacyRemoved = 0;
+
+    for (const [eventType, groups] of Object.entries(existingHooks)) {
+      const groupList = groups as HookGroup[];
+      const filtered = groupList.filter(group => {
+        const isLegacy = group.hooks.every(h =>
+          h.type === 'command'
+          && (h.command.includes('/.claude/hooks/') || h.command.includes('\\.claude\\hooks\\'))
+          && isOmcHook(h.command)
+        );
+        if (isLegacy) legacyRemoved++;
+        return !isLegacy;
+      });
+      if (filtered.length === 0) {
+        delete existingHooks[eventType];
+      } else {
+        existingHooks[eventType] = filtered;
+      }
+    }
+
+    if (legacyRemoved > 0) {
+      context.log(`  Cleaned up ${legacyRemoved} legacy hook entries from settings.json`);
+    }
+
+    const enabledOmcPlugin = context.runningAsPlugin || isOmcPluginEnabledInSettings(settings);
+    const pluginHandlesHooks = context.pluginProvidesHookFiles && enabledOmcPlugin;
+    const shouldConfigureSettingsHooks = (!context.runningAsPlugin || !!context.allowPluginHookRefresh) && !pluginHandlesHooks;
+    if (shouldConfigureSettingsHooks) {
+      const desiredHooks = getHooksSettingsConfig().hooks as Record<string, HookGroup[]>;
+
+      for (const [eventType, newOmcGroups] of Object.entries(desiredHooks)) {
+        const currentGroups = (existingHooks[eventType] as HookGroup[] | undefined) ?? [];
+        existingHooks[eventType] = mergeHookGroups(
+          eventType,
+          currentGroups,
+          newOmcGroups,
+          context.options,
+          context.log,
+          context.result,
+        );
+      }
+    }
+
+    settings.hooks = Object.keys(existingHooks).length > 0 ? existingHooks : undefined;
+    context.result.hooksConfigured = true;
+  }
+
+  if (context.hudScriptPath) {
+    const nodeBin = resolveNodeBinary();
+    const absoluteCommand = '"' + nodeBin + '" "' + context.hudScriptPath.replace(/\\/g, '/') + '"';
+    try {
+      const configDirHelperMjsSrc = join(getPackageDir(), 'scripts', 'lib', 'config-dir.mjs');
+      const hudLibDir = join(HUD_DIR, 'lib');
+      const configDirHelperMjsDest = join(hudLibDir, 'config-dir.mjs');
+      if (!existsSync(hudLibDir)) {
+        mkdirSync(hudLibDir, { recursive: true });
+      }
+      copyFileSync(configDirHelperMjsSrc, configDirHelperMjsDest);
+    } catch {
+      // Keep HUD installation best-effort if helper copy fails unexpectedly.
+    }
+
+    let statusLineCommand = absoluteCommand;
+    if (!isWindows()) {
+      try {
+        const findNodeSrc = join(getPackageDir(), 'scripts', 'find-node.sh');
+        const findNodeDest = join(HUD_DIR, 'find-node.sh');
+        const configDirHelperSrc = join(getPackageDir(), 'scripts', 'lib', 'config-dir.sh');
+        const hudLibDir = join(HUD_DIR, 'lib');
+        const configDirHelperDest = join(hudLibDir, 'config-dir.sh');
+        if (!existsSync(hudLibDir)) {
+          mkdirSync(hudLibDir, { recursive: true });
+        }
+        copyFileSync(findNodeSrc, findNodeDest);
+        copyFileSync(configDirHelperSrc, configDirHelperDest);
+        chmodSync(findNodeDest, 0o755);
+        chmodSync(configDirHelperDest, 0o755);
+        statusLineCommand = buildStatusLineCommand(nodeBin, context.hudScriptPath.replace(/\\/g, '/'), findNodeDest);
+      } catch {
+        statusLineCommand = buildStatusLineCommand(nodeBin, context.hudScriptPath.replace(/\\/g, '/'));
+      }
+    } else {
+      statusLineCommand = buildStatusLineCommand(nodeBin, context.hudScriptPath);
+    }
+
+    const needsMigration = typeof settings.statusLine === 'string'
+      && isOmcStatusLine(settings.statusLine);
+    if (!settings.statusLine || needsMigration) {
+      settings.statusLine = {
+        type: 'command',
+        command: statusLineCommand
+      };
+      context.log(needsMigration
+        ? '  Migrated statusLine from legacy string to object format'
+        : '  Configured statusLine');
+    } else if (context.options.force && isOmcStatusLine(settings.statusLine)) {
+      settings.statusLine = {
+        type: 'command',
+        command: statusLineCommand
+      };
+      context.log('  Updated statusLine (--force)');
+    } else if (context.options.force) {
+      context.log('  statusLine owned by another tool, preserving (use manual edit to override)');
+    } else {
+      context.log('  statusLine already configured, skipping (use --force to override)');
+    }
+  }
+
+  const mcpSync = syncUnifiedMcpRegistryTargets(settings);
+  settings = mcpSync.settings;
+  if (mcpSync.result.bootstrappedFromClaude) {
+    context.log(`  Bootstrapped unified MCP registry: ${mcpSync.result.registryPath}`);
+  }
+  if (mcpSync.result.claudeChanged) {
+    context.log(`  Synced ${mcpSync.result.serverNames.length} MCP server(s) into Claude MCP config: ${mcpSync.result.claudeConfigPath}`);
+  }
+  if (mcpSync.result.codexChanged) {
+    context.log(`  Synced ${mcpSync.result.serverNames.length} MCP server(s) into Codex config: ${mcpSync.result.codexConfigPath}`);
+  }
+
+  return settings;
+}
+
 const STANDALONE_HOOK_TEMPLATE_FILES = [
   'keyword-detector.mjs',
   'session-start.mjs',
@@ -864,6 +1003,26 @@ export function hasEnabledOmcPlugin(): boolean {
     }
   } catch {
     // Ignore unreadable settings and treat plugin mode as disabled.
+  }
+
+  return false;
+}
+
+function isOmcPluginEnabledInSettings(settings: Record<string, unknown>): boolean {
+  for (const candidate of [settings.enabledPlugins, settings.plugins]) {
+    if (Array.isArray(candidate)) {
+      if (candidate.some(plugin =>
+        typeof plugin === 'string' && plugin.toLowerCase().includes('oh-my-claudecode')
+      )) {
+        return true;
+      }
+    } else if (candidate && typeof candidate === 'object') {
+      if (Object.entries(candidate as Record<string, unknown>).some(([pluginId, value]) =>
+        pluginId.toLowerCase().includes('oh-my-claudecode') && value !== false
+      )) {
+        return true;
+      }
+    }
   }
 
   return false;
@@ -1475,130 +1634,22 @@ export function install(options: InstallOptions = {}): InstallResult {
     }
     if (!projectScoped) try {
       let existingSettings: Record<string, unknown> = {};
+      let initialSettingsSnapshot = '{}';
       if (existsSync(SETTINGS_FILE)) {
         const settingsContent = readFileSync(SETTINGS_FILE, 'utf-8');
         existingSettings = JSON.parse(settingsContent);
+        initialSettingsSnapshot = JSON.stringify(existingSettings);
       }
 
-      // 1. Remove legacy ~/.claude/hooks/ entries from settings.json, then restore
-      // standalone settings hooks or refresh plugin-safe merged hooks as needed.
-      {
-        const existingHooks = { ...((existingSettings.hooks || {}) as Record<string, unknown>) };
-        let legacyRemoved = 0;
-
-        for (const [eventType, groups] of Object.entries(existingHooks)) {
-          const groupList = groups as HookGroup[];
-          const filtered = groupList.filter(group => {
-            const isLegacy = group.hooks.every(h =>
-              h.type === 'command'
-              && (h.command.includes('/.claude/hooks/') || h.command.includes('\\.claude\\hooks\\'))
-              && isOmcHook(h.command)
-            );
-            if (isLegacy) legacyRemoved++;
-            return !isLegacy;
-          });
-          if (filtered.length === 0) {
-            delete existingHooks[eventType];
-          } else {
-            existingHooks[eventType] = filtered;
-          }
-        }
-
-        if (legacyRemoved > 0) {
-          log(`  Cleaned up ${legacyRemoved} legacy hook entries from settings.json`);
-        }
-
-        // Skip writing hooks to settings.json when the plugin provides hooks via
-        // hooks.json — the legacy cleanup above already removed stale OMC entries,
-        // and re-adding them would cause duplicate hook firing (#2252).
-        const pluginHandlesHooks = pluginProvidesHookFiles && enabledOmcPlugin;
-        const shouldConfigureSettingsHooks = (!runningAsPlugin || allowPluginHookRefresh) && !pluginHandlesHooks;
-        if (shouldConfigureSettingsHooks) {
-          const desiredHooks = getHooksSettingsConfig().hooks as Record<string, HookGroup[]>;
-
-          for (const [eventType, newOmcGroups] of Object.entries(desiredHooks)) {
-            const currentGroups = (existingHooks[eventType] as HookGroup[] | undefined) ?? [];
-            existingHooks[eventType] = mergeHookGroups(
-              eventType,
-              currentGroups,
-              newOmcGroups,
-              options,
-              log,
-              result,
-            );
-          }
-        }
-
-        existingSettings.hooks = Object.keys(existingHooks).length > 0 ? existingHooks : undefined;
-        result.hooksConfigured = true;
-      }
-
-      // 2. Configure statusLine (always, even in plugin mode)
-      if (hudScriptPath) {
-        const nodeBin = resolveNodeBinary();
-        const absoluteCommand = '"' + nodeBin + '" "' + hudScriptPath.replace(/\\/g, '/') + '"';
-        try {
-          const configDirHelperMjsSrc = join(getPackageDir(), 'scripts', 'lib', 'config-dir.mjs');
-          const hudLibDir = join(HUD_DIR, 'lib');
-          const configDirHelperMjsDest = join(hudLibDir, 'config-dir.mjs');
-          if (!existsSync(hudLibDir)) {
-            mkdirSync(hudLibDir, { recursive: true });
-          }
-          copyFileSync(configDirHelperMjsSrc, configDirHelperMjsDest);
-        } catch {
-          // Keep HUD installation best-effort if helper copy fails unexpectedly.
-        }
-
-        // On Unix, use find-node.sh for portable $HOME paths (multi-machine sync)
-        // and robust node discovery (nvm/fnm in non-interactive shells).
-        // Copy find-node.sh into the HUD directory so statusLine can reference it
-        // without depending on CLAUDE_PLUGIN_ROOT (which is only set for hooks).
-        let statusLineCommand = absoluteCommand;
-        if (!isWindows()) {
-          try {
-            const findNodeSrc = join(getPackageDir(), 'scripts', 'find-node.sh');
-            const findNodeDest = join(HUD_DIR, 'find-node.sh');
-            const configDirHelperSrc = join(getPackageDir(), 'scripts', 'lib', 'config-dir.sh');
-            const hudLibDir = join(HUD_DIR, 'lib');
-            const configDirHelperDest = join(hudLibDir, 'config-dir.sh');
-            if (!existsSync(hudLibDir)) {
-              mkdirSync(hudLibDir, { recursive: true });
-            }
-            copyFileSync(findNodeSrc, findNodeDest);
-            copyFileSync(configDirHelperSrc, configDirHelperDest);
-            chmodSync(findNodeDest, 0o755);
-            chmodSync(configDirHelperDest, 0o755);
-            statusLineCommand = buildStatusLineCommand(nodeBin, hudScriptPath.replace(/\\/g, '/'), findNodeDest);
-          } catch {
-            // Fallback to bare node if find-node.sh copy fails
-            statusLineCommand = buildStatusLineCommand(nodeBin, hudScriptPath.replace(/\\/g, '/'));
-          }
-        } else {
-          statusLineCommand = buildStatusLineCommand(nodeBin, hudScriptPath);
-        }
-        // Auto-migrate legacy string format (pre-v4.5) to object format
-        const needsMigration = typeof existingSettings.statusLine === 'string'
-          && isOmcStatusLine(existingSettings.statusLine);
-        if (!existingSettings.statusLine || needsMigration) {
-          existingSettings.statusLine = {
-            type: 'command',
-            command: statusLineCommand
-          };
-          log(needsMigration
-            ? '  Migrated statusLine from legacy string to object format'
-            : '  Configured statusLine');
-        } else if (options.force && isOmcStatusLine(existingSettings.statusLine)) {
-          existingSettings.statusLine = {
-            type: 'command',
-            command: statusLineCommand
-          };
-          log('  Updated statusLine (--force)');
-        } else if (options.force) {
-          log('  statusLine owned by another tool, preserving (use manual edit to override)');
-        } else {
-          log('  statusLine already configured, skipping (use --force to override)');
-        }
-      }
+      existingSettings = configureInstallerSettings(existingSettings, {
+        allowPluginHookRefresh: !!allowPluginHookRefresh,
+        hudScriptPath,
+        log,
+        options,
+        pluginProvidesHookFiles,
+        result,
+        runningAsPlugin,
+      });
 
       // 3. Persist the detected node binary path into .omc-config.json so that
       //    find-node.sh (used in hooks/hooks.json) can locate it at hook runtime
@@ -1619,17 +1670,19 @@ export function install(options: InstallOptions = {}): InstallResult {
         log('  Warning: Could not save node binary path (non-fatal)');
       }
 
-      // 4. Sync unified MCP registry into Claude + Codex config surfaces
-      const mcpSync = syncUnifiedMcpRegistryTargets(existingSettings);
-      existingSettings = mcpSync.settings;
-      if (mcpSync.result.bootstrappedFromClaude) {
-        log(`  Bootstrapped unified MCP registry: ${mcpSync.result.registryPath}`);
-      }
-      if (mcpSync.result.claudeChanged) {
-        log(`  Synced ${mcpSync.result.serverNames.length} MCP server(s) into Claude MCP config: ${mcpSync.result.claudeConfigPath}`);
-      }
-      if (mcpSync.result.codexChanged) {
-        log(`  Synced ${mcpSync.result.serverNames.length} MCP server(s) into Codex config: ${mcpSync.result.codexConfigPath}`);
+      const staleSettings = existsSync(SETTINGS_FILE)
+        ? JSON.parse(readFileSync(SETTINGS_FILE, 'utf-8')) as Record<string, unknown>
+        : {};
+      if (JSON.stringify(staleSettings) !== initialSettingsSnapshot) {
+        existingSettings = configureInstallerSettings(staleSettings, {
+          allowPluginHookRefresh: !!allowPluginHookRefresh,
+          hudScriptPath,
+          log: () => {},
+          options,
+          pluginProvidesHookFiles,
+          result,
+          runningAsPlugin,
+        });
       }
 
       // 5. Single atomic write
